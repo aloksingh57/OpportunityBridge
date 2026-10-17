@@ -143,7 +143,6 @@ export function AppExperience({ path: segments, initialData }: Props) {
     try {
       await postJson("/api/session", { demoUserId: userId });
       router.push("/dashboard");
-      router.refresh();
     } catch (error) {
       setFlash({ tone: "error", message: error instanceof Error ? error.message : "That demo profile could not be selected." });
       setBusy(false);
@@ -156,7 +155,6 @@ export function AppExperience({ path: segments, initialData }: Props) {
       const response = await fetch("/api/session", { method: "DELETE" });
       if (!response.ok) throw new Error("You could not be signed out. Please retry.");
       router.push("/");
-      router.refresh();
     } catch (error) {
       setFlash({ tone: "error", message: error instanceof Error ? error.message : "Sign out failed." });
       setBusy(false);
@@ -170,7 +168,10 @@ export function AppExperience({ path: segments, initialData }: Props) {
     postJson,
     refreshData,
     switchDemo,
-    navigate: (href) => { router.push(href); router.refresh(); },
+    navigate: (href) => {
+      if (href === path) router.refresh();
+      else router.push(href);
+    },
   });
 
   return (
@@ -220,7 +221,7 @@ function renderRoute(path: string, segments: string[], data: BootstrapData, cont
   if (path === "/how-it-works") return { node: <HowItWorksPage />, propsHasFlash: false };
   if (path === "/contact") return { node: <ContactPage context={context} />, propsHasFlash: true };
   if (path === "/onboarding") return { node: <OnboardingPage data={data} />, propsHasFlash: false };
-  if (path === "/dashboard") return { node: <DashboardPage data={data} context={context} />, propsHasFlash: false };
+  if (path === "/dashboard") return { node: <DashboardPage key={`${data.currentUser?.id ?? "guest"}:${data.currentUser?.roles.join("|") ?? ""}`} data={data} context={context} />, propsHasFlash: false };
   if (path === "/profile") return { node: <ProfilePage data={data} context={context} />, propsHasFlash: true };
   if (path === "/settings") return { node: <SettingsPage data={data} context={context} />, propsHasFlash: true };
   if (path === "/notifications") return { node: <NotificationsPage data={data} context={context} />, propsHasFlash: true };
@@ -680,34 +681,201 @@ function OnboardingPage({ data }: { data: BootstrapData }) {
 
 function DashboardPage({ data, context }: { data: BootstrapData; context: RouteContext }) {
   const user = data.currentUser;
+  const [activeRole, setActiveRole] = useState<Role>(user?.role ?? "student");
   if (!user) return <InfoPage title="Choose a demo profile to begin." description="Your dashboard follows your role and activity, so pick a profile before you settle in." action={<Link className="button button-dark" href="/login">Choose a profile <ArrowRight size={16} /></Link>} />;
+
   const greeting = user.name.split(" ")[0];
-  const title = user.role === "founder" ? "Build something worth joining." : user.role === "investor" ? "Meet the founders shaping what?s next." : user.role === "mentor" ? "Your experience can open a door." : user.role === "advisor" ? "Good advice starts with listening." : user.role === "recruiter" ? "Find people who make the work better." : user.role === "job-seeker" ? "Your next role is closer than it feels." : "A small step can open a big door.";
+  const dashboardTitles: Record<Role, string> = {
+    student: "A small step can open a big door.",
+    "job-seeker": "Your next role is closer than it feels.",
+    founder: "Build something worth joining.",
+    investor: "Meet the founders shaping what's next.",
+    mentor: "Your experience can open a door.",
+    advisor: "Good advice starts with listening.",
+    recruiter: "Find people who make the work better.",
+  };
+  const title = dashboardTitles[activeRole];
+  const ownedOpportunities = data.opportunities.filter((item) => item.publisherId === user.id);
   const publisherApplications = data.applications.filter((item) => item.opportunity?.publisherId === user.id);
-  const canPublish = user.roles.some((role) => role === "founder" || role === "recruiter");
-  const featured = user.roles.includes("founder") ? data.people.filter((item) => item.roles.some((role) => ["investor", "advisor", "mentor"].includes(role))) : data.people.filter((item) => item.roles.some((role) => ["mentor", "founder", "recruiter"].includes(role)));
-  const matching = recommendOpportunities(findStoredUser(user, data.people), data.opportunities.filter((item) => item.status === "published"), new Date()).slice(0, 3);
-  return <div className="content-page dashboard-page"><div className="dashboard-welcome"><div><p className="eyebrow">{roleNames[user.role].toUpperCase()} SPACE · DEMO</p><h1>Hi, {greeting}.<br /><span>{title}</span></h1><p>Here are a few useful next steps for the path you?re exploring.</p></div><div className="welcome-sparkle"><Sparkles size={31} /></div></div>
-    <div className="dashboard-metrics">
-      {(canPublish ? [
-        ["Published listings", data.metrics.publishedOpportunities, "/manage-opportunities", "Your opportunities"],
-        ["Applications to review", data.metrics.applicants, "/manage-applicants", "Publisher inbox"],
-        ["Connections", data.metrics.connections, "/connections", "People in your circle"],
-        ["Profile completeness", `${data.metrics.profileCompletion}%`, "/profile", "Help people find you"],
-      ] : [
-        ["Applications", data.metrics.applications, "/applications", "Your current journey"],
-        ["Saved opportunities", data.metrics.savedOpportunities, "/saved", "Worth another look"],
-        ["Connections", data.metrics.connections, "/connections", "People in your circle"],
-        ["Profile completeness", `${data.metrics.profileCompletion}%`, "/profile", "Help people find you"],
-      ]).map(([label, value, href, detail]) => <Link className="metric-card" key={String(label)} href={String(href)}><span>{label}</span><strong>{value}</strong><small>{detail} <ArrowUpRight size={13} /></small></Link>)}
+  const ownApplications = data.applications.filter((item) => item.applicantId === user.id)
+    .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+  const sessions = data.mentoringSessions.filter((item) => item.providerId === user.id);
+  const activeListings = ownedOpportunities.filter((item) => item.status === "published");
+  const investorStartups = [...data.startups].sort((first, second) => {
+    const interestScore = (industry: string) => user.interests.filter((interest) =>
+      industry.toLowerCase().includes(interest.toLowerCase()) || interest.toLowerCase().includes(industry.toLowerCase()),
+    ).length;
+    return interestScore(second.industry) - interestScore(first.industry);
+  });
+  const matching = recommendOpportunities(
+    findStoredUser(user, data.people),
+    data.opportunities.filter((item) => item.status === "published"),
+    new Date(),
+  ).slice(0, 3);
+  const metricCards: Array<{ label: string; value: number | string; href: string; detail: string }> = activeRole === "founder" || activeRole === "recruiter"
+    ? [
+        { label: "Live listings", value: activeListings.length, href: "/manage-opportunities", detail: "Your published opportunities" },
+        { label: "Applicants", value: publisherApplications.length, href: "/manage-applicants", detail: "Across your listings" },
+        { label: "Need a response", value: publisherApplications.filter((item) => item.status === "submitted").length, href: "/manage-applicants", detail: "New submissions" },
+        { label: "Profile completeness", value: `${data.metrics.profileCompletion}%`, href: "/profile", detail: "Make your organization easier to find" },
+      ]
+    : activeRole === "investor"
+      ? [
+          { label: "Startups to explore", value: data.startups.length, href: "/startups", detail: "Fictional profiles in this demo" },
+          { label: "Funding listings", value: data.opportunities.filter((item) => item.type === "startup-funding" && item.status === "published").length, href: "/opportunities", detail: "Published demo opportunities" },
+          { label: "Connections", value: data.metrics.connections, href: "/connections", detail: "People in your circle" },
+          { label: "Profile completeness", value: `${data.metrics.profileCompletion}%`, href: "/profile", detail: "Help founders understand your focus" },
+        ]
+      : activeRole === "mentor" || activeRole === "advisor"
+        ? [
+            { label: "Requests to review", value: sessions.filter((item) => item.status === "requested").length, href: "/sessions", detail: "Waiting for your response" },
+            { label: "Accepted sessions", value: sessions.filter((item) => item.status === "accepted").length, href: "/sessions", detail: "In progress or to schedule" },
+            { label: "Completed", value: sessions.filter((item) => item.status === "completed").length, href: "/sessions", detail: "Guidance sessions completed" },
+            { label: "Profile completeness", value: `${data.metrics.profileCompletion}%`, href: "/profile", detail: "Share the help you can offer" },
+          ]
+        : [
+            { label: "Applications", value: ownApplications.length, href: "/applications", detail: "Your current journey" },
+            { label: "In progress", value: ownApplications.filter((item) => ["submitted", "reviewing", "shortlisted", "interview"].includes(item.status)).length, href: "/applications", detail: "Submitted through accepted" },
+            { label: "Saved opportunities", value: data.metrics.savedOpportunities, href: "/saved", detail: "Worth another look" },
+            { label: "Profile completeness", value: `${data.metrics.profileCompletion}%`, href: "/profile", detail: "Improve recommendations" },
+          ];
+  const suggestedRoles: Role[] = activeRole === "founder"
+    ? ["investor", "advisor", "mentor"]
+    : activeRole === "investor"
+      ? ["founder", "advisor"]
+      : ["mentor", "founder", "recruiter"];
+  const featuredPeople = data.people.filter((person) => person.id !== user.id && person.roles.some((role) => suggestedRoles.includes(role))).slice(0, 4);
+
+  return <div className="content-page dashboard-page">
+    <div className="dashboard-welcome">
+      <div><p className="eyebrow">{roleNames[activeRole].toUpperCase()} WORKSPACE · LOCAL DEMO</p><h1>Hi, {greeting}.<br /><span>{title}</span></h1><p>Your overview is built from the activity attached to this demo profile.</p></div>
+      <div className="welcome-sparkle"><Sparkles size={31} /></div>
     </div>
-    <div className="dashboard-grid">
-      <section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">{canPublish ? "YOUR PUBLISHING SPACE" : "A GOOD PLACE TO START"}</p><h2>{canPublish ? "Keep the work moving." : "Picked with you in mind."}</h2></div><Link className="text-link" href={canPublish ? "/manage-applicants" : "/recommendations"}>See all <ArrowRight size={15} /></Link></div>
-        {canPublish ? <div className="dashboard-list">{publisherApplications.slice(0, 4).map((application) => <ApplicationRow key={application.id} application={application} />)}{publisherApplications.length === 0 ? <EmptyState title="No applications to review yet." body="Published opportunities will gather applications here as your demo story unfolds." action={<Link className="button button-dark" href="/publish">Publish an opportunity <Plus size={16} /></Link>} /> : null}</div> : <div className="opportunity-grid dashboard-opportunity-grid">{matching.map(({ opportunity, score }) => <OpportunityCard key={opportunity.id} opportunity={opportunity} saved={data.savedOpportunityIds.includes(opportunity.id)} onSave={() => handleSave(opportunity, data, context)} compact score={score} />)}</div>}
-      </section>
-      <aside className="dashboard-panel people-panel"><div className="panel-heading"><div><p className="eyebrow">PEOPLE YOU COULD MEET</p><h2>A few good introductions.</h2></div><Link href="/people" className="icon-button" aria-label="Browse all people"><ArrowRight size={16} /></Link></div><div className="suggested-people">{featured.slice(0, 4).map((person) => <Link className="suggested-person" key={person.id} href={`/people/${person.id}`}><PersonAvatar person={person} /><span><b>{person.name}</b><small>{roleNames[person.role]} · demo</small></span><ArrowUpRight size={15} /></Link>)}</div><Link href="/people" className="panel-footer-link">Explore the community <ArrowRight size={14} /></Link></aside>
+    {user.roles.length > 1 ? <div className="dashboard-role-picker" role="tablist" aria-label="Choose a dashboard role">
+      <span>VIEW AS</span>
+      {user.roles.map((role) => <button key={role} type="button" role="tab" aria-selected={activeRole === role} className={activeRole === role ? "active" : ""} onClick={() => setActiveRole(role)}>{roleNames[role]}</button>)}
+    </div> : null}
+    <div className="dashboard-metrics">{metricCards.map(({ label, value, href, detail }) => <Link className="metric-card" key={label} href={href}><span>{label}</span><strong>{value}</strong><small>{detail} <ArrowUpRight size={13} /></small></Link>)}</div>
+    {(activeRole === "founder" || activeRole === "recruiter")
+      ? <PublisherDashboard applications={publisherApplications} opportunities={ownedOpportunities} />
+      : activeRole === "investor"
+        ? <InvestorDashboard
+            startups={investorStartups}
+            fundingOpportunities={data.opportunities.filter((item) => item.type === "startup-funding" && item.status === "published")}
+          />
+        : activeRole === "mentor" || activeRole === "advisor"
+          ? <GuidanceDashboard sessions={sessions} context={context} />
+          : <ApplicantDashboard applications={ownApplications} recommendations={matching} data={data} context={context} />}
+    <div className="dashboard-grid dashboard-secondary-grid">
+      <aside className="dashboard-panel people-panel"><div className="panel-heading"><div><p className="eyebrow">PEOPLE FOR YOUR {activeRole === "investor" ? "NETWORK" : "NEXT STEP"}</p><h2>Useful introductions.</h2></div><Link href="/people" className="icon-button" aria-label="Browse all people"><ArrowRight size={16} /></Link></div>
+        {featuredPeople.length ? <div className="suggested-people">{featuredPeople.map((person) => <Link className="suggested-person" key={person.id} href={`/people/${person.id}`}><PersonAvatar person={person} /><span><b>{person.name}</b><small>{roleNames[person.role]} · demo profile</small></span><ArrowUpRight size={15} /></Link>)}</div> : <p className="quiet-empty">Explore the community to discover people for your next step.</p>}
+        <Link href="/people" className="panel-footer-link">Explore the community <ArrowRight size={14} /></Link>
+      </aside>
+      <div className="dashboard-panel dashboard-profile-panel"><div className="profile-progress-icon"><BadgeCheck size={20} /></div><p className="eyebrow">PROFILE QUALITY</p><h2>{data.metrics.profileCompletion}% complete</h2><p>Adding clear skills, interests, and a short introduction helps people and recommendations understand your goals.</p><div className="dashboard-progress-track"><span style={{ width: `${data.metrics.profileCompletion}%` }} /></div><Link className="button button-light button-small" href="/profile">Improve profile <ArrowRight size={14} /></Link></div>
     </div>
-    <div className="dashboard-bottom-row"><div className="profile-progress-card"><div className="profile-progress-icon"><BadgeCheck size={20} /></div><div><span className="eyebrow">YOUR PROFILE</span><strong>{data.metrics.profileCompletion}% complete</strong><p>A few more details can make your recommendations feel more like you.</p><Link href="/profile" className="text-link">Add a little more <ArrowRight size={15} /></Link></div><div className="progress-ring" style={{ "--progress": `${data.metrics.profileCompletion}%` } as React.CSSProperties}><b>{data.metrics.profileCompletion}%</b></div></div><div className="demo-reminder"><ShieldCheck size={19} /><div><b>A reminder about this demo</b><p>Profiles and activity are fictional sample data. Your actions are stored locally for this experience.</p></div></div></div>
+    <div className="demo-reminder dashboard-demo-reminder"><ShieldCheck size={19} /><div><b>Local demo data</b><p>People, startups, listings, applications, and metrics are fictional. Activity you create is stored in this local demo.</p></div></div>
+  </div>;
+}
+
+function ApplicantDashboard({
+  applications,
+  recommendations,
+  data,
+  context,
+}: {
+  applications: BootstrapData["applications"];
+  recommendations: ReturnType<typeof recommendOpportunities>;
+  data: BootstrapData;
+  context: RouteContext;
+}) {
+  const stages: Array<{ status: ApplicationStatus; label: string }> = [
+    { status: "submitted", label: "Submitted" },
+    { status: "reviewing", label: "In review" },
+    { status: "shortlisted", label: "Shortlisted" },
+    { status: "interview", label: "Interview" },
+    { status: "accepted", label: "Accepted" },
+  ];
+  const maximum = Math.max(1, ...stages.map(({ status }) => applications.filter((item) => item.status === status).length));
+  return <div className="dashboard-grid dashboard-primary-grid">
+    <section className="dashboard-panel">
+      <div className="panel-heading"><div><p className="eyebrow">APPLICATION JOURNEY</p><h2>See where things stand.</h2></div><Link className="text-link" href="/applications">All applications <ArrowRight size={14} /></Link></div>
+      {applications.length ? <>
+        <div className="dashboard-stage-list">{stages.map(({ status, label }) => {
+          const count = applications.filter((item) => item.status === status).length;
+          return <div className="dashboard-stage-row" key={status}><span>{label}</span><div className="dashboard-stage-track"><span style={{ width: `${Math.max(count ? 8 : 0, (count / maximum) * 100)}%` }} /></div><b>{count}</b></div>;
+        })}</div>
+        <div className="dashboard-list dashboard-recent-applications">{applications.slice(0, 3).map((application) => <ApplicationRow key={application.id} application={application} />)}</div>
+      </> : <EmptyState title="Your application journey starts here." body="Browse the demo opportunities and apply to a role that matches your interests." action={<Link className="button button-dark" href="/opportunities">Explore opportunities <ArrowRight size={15} /></Link>} />}
+    </section>
+    <section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">RECOMMENDED FOR YOU</p><h2>Good next opportunities.</h2></div><Link className="text-link" href="/recommendations">See matches <ArrowRight size={14} /></Link></div>
+      {recommendations.length ? <div className="dashboard-opportunity-list">{recommendations.slice(0, 3).map(({ opportunity, score }) => <div className="dashboard-opportunity-row" key={opportunity.id}><div><span className="score-label"><Sparkles size={12} />{score}% match</span><Link href={`/opportunities/${opportunity.id}`}><b>{opportunity.title}</b></Link><small>{opportunity.organization} · deadline {new Date(opportunity.deadline).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</small></div><button className={`icon-button save-button ${data.savedOpportunityIds.includes(opportunity.id) ? "is-saved" : ""}`} type="button" onClick={() => handleSave(opportunity, data, context)} aria-label={data.savedOpportunityIds.includes(opportunity.id) ? `Remove ${opportunity.title} from saved` : `Save ${opportunity.title}`}>{data.savedOpportunityIds.includes(opportunity.id) ? <Check size={16} /> : <Bookmark size={16} />}</button></div>)}</div> : <p className="quiet-empty">Update your profile interests and skills to get more relevant suggestions.</p>}
+    </section>
+  </div>;
+}
+
+function PublisherDashboard({
+  applications,
+  opportunities,
+}: {
+  applications: BootstrapData["applications"];
+  opportunities: Opportunity[];
+}) {
+  const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "all">("all");
+  const statuses: ApplicationStatus[] = ["submitted", "reviewing", "shortlisted", "interview", "accepted", "rejected"];
+  const filteredApplications = applications.filter((application) => statusFilter === "all" || application.status === statusFilter).slice(0, 5);
+  return <div className="dashboard-grid dashboard-primary-grid">
+    <section className="dashboard-panel">
+      <div className="panel-heading"><div><p className="eyebrow">HIRING & OPPORTUNITY PIPELINE</p><h2>Keep every listing moving.</h2></div><Link className="text-link" href="/manage-applicants">Open applicant inbox <ArrowRight size={14} /></Link></div>
+      <div className="dashboard-filter-row" aria-label="Filter applications by status">
+        <button type="button" className={statusFilter === "all" ? "active" : ""} onClick={() => setStatusFilter("all")}>All ({applications.length})</button>
+        {statuses.slice(0, 4).map((status) => <button type="button" key={status} className={statusFilter === status ? "active" : ""} onClick={() => setStatusFilter(status)}>{statusLabels[status]} ({applications.filter((item) => item.status === status).length})</button>)}
+      </div>
+      {filteredApplications.length ? <div className="dashboard-list">{filteredApplications.map((application) => <ApplicationRow key={application.id} application={application} />)}</div> : <EmptyState title={applications.length ? "No applicants at this stage." : "Your applicant pipeline is ready."} body={applications.length ? "Choose another status to see other applicants." : "Publish a listing to start receiving demo applications."} action={<Link className="button button-dark" href={opportunities.length ? "/manage-opportunities" : "/publish"}>{opportunities.length ? "Manage listings" : "Publish a listing"} <ArrowRight size={15} /></Link>} />}
+    </section>
+    <section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">LISTING HEALTH</p><h2>Your opportunities.</h2></div><Link className="text-link" href="/manage-opportunities">Manage <ArrowRight size={14} /></Link></div>
+      {opportunities.length ? <div className="dashboard-listing-health">{opportunities.slice(0, 5).map((opportunity) => {
+        const count = applications.filter((application) => application.opportunityId === opportunity.id).length;
+        return <article className="dashboard-listing-row" key={opportunity.id}><div className="dashboard-listing-top"><Link href={`/opportunities/${opportunity.id}`}><b>{opportunity.title}</b></Link><span className={`listing-status listing-${opportunity.status}`}>{opportunity.status}</span></div><div className="dashboard-listing-bottom"><span>{count} application{count === 1 ? "" : "s"}</span><span>Deadline {new Date(opportunity.deadline).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span></div><div className="dashboard-progress-track"><span style={{ width: `${Math.min(100, count * 15)}%` }} /></div></article>;
+      })}</div> : <p className="quiet-empty">Publish your first opportunity to build an applicant pipeline.</p>}
+      <Link className="button button-light button-small dashboard-panel-action" href="/publish"><Plus size={14} />Create a listing</Link>
+    </section>
+  </div>;
+}
+
+function InvestorDashboard({
+  startups,
+  fundingOpportunities,
+}: {
+  startups: BootstrapData["startups"];
+  fundingOpportunities: Opportunity[];
+}) {
+  return <div className="dashboard-grid dashboard-primary-grid">
+    <section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">FOUNDER DISCOVERY</p><h2>Start with the teams behind the ideas.</h2></div><Link className="text-link" href="/startups">Browse startups <ArrowRight size={14} /></Link></div>
+      {startups.length ? <div className="investor-startup-list">{startups.slice(0, 4).map((startup) => <article className="investor-startup-card" key={startup.id}><div className="investor-startup-heading"><span className="startup-stage">{startup.stage.replace("-", " ")}</span><span className="demo-pill">DEMO</span></div><h3>{startup.name}</h3><p>{startup.summary}</p><div className="investor-startup-meta"><span>{startup.industry}</span><span>{startup.fundingAskInr === null ? "Funding ask not listed" : `Ask: ${new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(startup.fundingAskInr)}`}</span></div><div className="investor-startup-founder"><PersonAvatar person={startup.founder} /><span><b>{startup.founder.name}</b><small>Founder · fictional profile</small></span><Link className="text-link" href={`/people/${startup.founder.id}`}>Connect <ArrowRight size={13} /></Link></div></article>)}</div> : <p className="quiet-empty">There are no startup profiles to show in this demo.</p>}
+    </section>
+    <section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">FUNDING OPPORTUNITIES</p><h2>Open opportunities.</h2></div><Link className="text-link" href="/opportunities">Explore <ArrowRight size={14} /></Link></div>
+      {fundingOpportunities.length ? <div className="dashboard-opportunity-list">{fundingOpportunities.slice(0, 4).map((opportunity) => <div className="dashboard-opportunity-row" key={opportunity.id}><div><span className="demo-pill">DEMO LISTING</span><Link href={`/opportunities/${opportunity.id}`}><b>{opportunity.title}</b></Link><small>{opportunity.organization} · deadline {new Date(opportunity.deadline).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</small></div><ArrowUpRight size={15} /></div>)}</div> : <p className="quiet-empty">No funding listings are currently published in this demo.</p>}
+      <p className="dashboard-context-note">Startup profiles and funding listings are fictional sample records. Review the founder profile and opportunity details before reaching out.</p>
+      <Link className="button button-dark button-small dashboard-panel-action" href="/startups">Discover startup profiles <ArrowRight size={14} /></Link>
+    </section>
+  </div>;
+}
+
+function GuidanceDashboard({ sessions, context }: { sessions: BootstrapData["mentoringSessions"]; context: RouteContext }) {
+  const requests = [...sessions].filter((session) => session.status === "requested").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const upcoming = [...sessions].filter((session) => session.status === "accepted").sort((a, b) => {
+    if (!a.scheduledFor) return 1;
+    if (!b.scheduledFor) return -1;
+    return a.scheduledFor.localeCompare(b.scheduledFor);
+  });
+  return <div className="dashboard-grid dashboard-primary-grid">
+    <section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">GUIDANCE INBOX</p><h2>Requests waiting for you.</h2></div><Link className="text-link" href="/sessions">All sessions <ArrowRight size={14} /></Link></div>
+      {requests.length ? <div className="dashboard-session-list">{requests.slice(0, 4).map((session) => <article className="dashboard-session-row" key={session.id}><PersonAvatar person={session.otherPerson} /><div><b>{session.serviceType.replaceAll("-", " ")}</b><span>From {session.otherPerson.name}</span><small>{session.requestNote || "No additional note"} · requested {new Date(session.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</small></div><div className="dashboard-session-actions"><button type="button" className="button button-dark button-small" disabled={context.busy} onClick={() => void context.performAction({ type: "session-update", sessionId: session.id, action: "accept" })}>Accept</button><Link className="text-link" href="/sessions">Review</Link></div></article>)}</div> : <EmptyState title="Your request inbox is clear." body="When someone requests a mentoring or advisory session, it will appear here." action={<Link className="button button-light" href="/people">View your public profile <ArrowRight size={15} /></Link>} />}
+    </section>
+    <section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">ACCEPTED SESSIONS</p><h2>Plan the next conversation.</h2></div></div>
+      {upcoming.length ? <div className="dashboard-session-list">{upcoming.slice(0, 4).map((session) => <div className="dashboard-upcoming-row" key={session.id}><span className="session-date-mark"><CalendarDays size={17} /></span><div><b>{session.otherPerson.name}</b><span>{session.serviceType.replaceAll("-", " ")}</span><small>{session.scheduledFor ? new Date(session.scheduledFor).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "Time to be agreed directly"}</small></div><span className="listing-status listing-accepted">accepted</span></div>)}</div> : <p className="quiet-empty">Accepted sessions and agreed times will appear here. No calendar invite is sent by this local demo.</p>}
+      <Link className="button button-light button-small dashboard-panel-action" href="/sessions">Manage sessions <ArrowRight size={14} /></Link>
+    </section>
   </div>;
 }
 

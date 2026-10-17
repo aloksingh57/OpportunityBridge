@@ -59,6 +59,18 @@ The value printed by this command is a secret: keep it out of source control and
 
 All sample names, employers, and activity remain labeled as demos in the interface.
 
+### Role-specific dashboard views
+
+The `/dashboard` overview follows the selected demo identity and uses real relationships from the local demo store. Accounts with multiple roles can switch dashboard views without changing their profile:
+
+- **Students and job seekers:** application status breakdown, recent submissions, and personalized opportunity matches.
+- **Founders and recruiters:** applicant pipeline with status filters, per-listing application counts, deadlines, and listing shortcuts.
+- **Investors:** startup profiles, founder introductions, and published funding listings.
+- **Mentors and advisors:** pending session requests with direct accept actions, plus accepted sessions and proposed times.
+- **Administrators:** a separate restricted overview with report, moderation, and contact queues at `/admin`.
+
+Dashboard counts are derived from the signed-in demo profile's visible records. These panels do not imply live hiring, investment activity, calendar bookings, or real-world outcomes.
+
 ## Included workflows
 
 | Area | Routes | Included behavior |

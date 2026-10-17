@@ -32,6 +32,7 @@ Build a runnable, responsive professional discovery and collaboration platform f
 - Member pages: onboarding, multi-role dashboard, profile/settings, notifications, messages, connections, mentoring/advisory sessions, saved items, applications/details, publishing, applicant management, and recommendations.
 - Restricted admin overview, user moderation, and opportunity moderation.
 - Investor startup discovery filtered by industry and stage.
+- Role-specific dashboard views for students/job seekers, founders/recruiters, investors, mentors/advisors, and restricted admins; dashboard metrics must derive from visible persisted records.
 - Session-only PDF attachments for CV/pitch review, with requester/provider access checks on every download.
 - User reports and blocks with private admin review; demo identities must never be represented as truly verified.
 - Search/filter/sort opportunities; persist saves, applications, connections, messages, notifications, profiles, and moderation records.

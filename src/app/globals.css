@@ -547,6 +547,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .dashboard-welcome h1 span { color: #78669f; }
 .dashboard-welcome > div:first-child > p:last-child { margin: 11px 0 0; color: #777481; font-size: 10px; }
 .welcome-sparkle { display: grid; place-items: center; width: 84px; height: 84px; margin-right: 27px; border: 1px solid #fff; border-radius: 30px; color: #7c6aa5; background: rgb(255 255 255 / 67%); transform: rotate(8deg); }
+.dashboard-role-picker { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 15px 0 -1px; }
+.dashboard-role-picker > span { margin-right: 4px; color: #96929e; font-size: 8px; font-weight: 800; letter-spacing: .1em; }
+.dashboard-role-picker button, .dashboard-filter-row button { min-height: 31px; padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: #777481; font-size: 9px; font-weight: 650; cursor: pointer; transition: color .18s ease, background .18s ease, border-color .18s ease, transform .18s ease; }
+.dashboard-role-picker button:hover, .dashboard-filter-row button:hover { border-color: #cfc4e2; color: #66578a; transform: translateY(-1px); }
+.dashboard-role-picker button.active, .dashboard-filter-row button.active { border-color: #ded5ee; background: #f0ecf8; color: #5d4c82; }
 .dashboard-metrics, .admin-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 16px 0 25px; }
 .metric-card, .admin-metrics > div { display: flex; flex-direction: column; gap: 3px; min-height: 113px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
 .metric-card > span, .admin-metrics > div > span { color: #787582; font-size: 9px; }
@@ -582,6 +587,63 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .dashboard-list { display: flex; flex-direction: column; gap: 7px; }
 .dashboard-list .application-row { padding: 10px 0; }
 .dashboard-list .empty-state { min-height: 180px; border: 0; }
+.dashboard-primary-grid { margin-bottom: 14px; }
+.dashboard-secondary-grid { grid-template-columns: minmax(0, 1.25fr) minmax(275px, .75fr); margin-top: 0; }
+.dashboard-profile-panel { display: flex; flex-direction: column; align-items: flex-start; min-height: 100%; }
+.dashboard-profile-panel .profile-progress-icon { margin-bottom: 14px; }
+.dashboard-profile-panel .eyebrow { margin: 0 0 3px; font-size: 8px; }
+.dashboard-profile-panel h2 { margin: 0; font-size: 18px; letter-spacing: -.045em; }
+.dashboard-profile-panel > p:not(.eyebrow) { margin: 7px 0 11px; color: #817d89; font-size: 9px; line-height: 1.7; }
+.dashboard-progress-track, .dashboard-stage-track { height: 7px; overflow: hidden; border-radius: 10px; background: #f0eef2; }
+.dashboard-progress-track { width: 100%; margin: 0 0 14px; }
+.dashboard-progress-track > span, .dashboard-stage-track > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #9c8bc0, #7fb296); transition: width .35s ease; }
+.dashboard-demo-reminder { margin-top: 14px; }
+.dashboard-stage-list { display: flex; flex-direction: column; gap: 11px; padding: 3px 1px 16px; }
+.dashboard-stage-row { display: grid; grid-template-columns: 88px minmax(60px, 1fr) 22px; align-items: center; gap: 10px; color: #777481; font-size: 9px; }
+.dashboard-stage-row > b { color: #514d60; font-size: 10px; text-align: right; }
+.dashboard-stage-track { height: 6px; }
+.dashboard-recent-applications { border-top: 1px solid #f0eff1; }
+.dashboard-opportunity-list { display: flex; flex-direction: column; }
+.dashboard-opportunity-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 12px 0; border-bottom: 1px solid #f0eff1; }
+.dashboard-opportunity-row > div { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.dashboard-opportunity-row > div > a { overflow: hidden; font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-opportunity-row small { color: #85818f; font-size: 8px; }
+.dashboard-opportunity-row > svg { flex: none; color: #88819a; }
+.dashboard-opportunity-row .score-label { margin-bottom: 1px; font-size: 8px; }
+.dashboard-filter-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.dashboard-filter-row button { min-height: 28px; padding: 0 8px; font-size: 8px; }
+.dashboard-listing-health { display: flex; flex-direction: column; }
+.dashboard-listing-row { padding: 12px 0; border-bottom: 1px solid #f0eff1; }
+.dashboard-listing-top, .dashboard-listing-bottom { display: flex; align-items: center; justify-content: space-between; gap: 9px; }
+.dashboard-listing-top > a { overflow: hidden; font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-listing-top .listing-status { flex: none; }
+.dashboard-listing-bottom { margin: 6px 0 8px; color: #85818f; font-size: 8px; }
+.dashboard-listing-row .dashboard-progress-track { height: 4px; margin: 0; }
+.dashboard-panel-action { align-self: flex-start; margin-top: 13px; }
+.investor-startup-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.investor-startup-card { min-width: 0; padding: 13px; border: 1px solid #efedf1; border-radius: 13px; background: #fdfcfe; transition: transform .18s ease, box-shadow .18s ease; }
+.investor-startup-card:hover { transform: translateY(-2px); box-shadow: 0 9px 22px rgb(40 34 65 / 6%); }
+.investor-startup-heading { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.startup-stage { color: #6e5c94; font-size: 8px; font-weight: 750; text-transform: capitalize; }
+.investor-startup-card h3 { margin: 8px 0 4px; font-size: 13px; letter-spacing: -.035em; }
+.investor-startup-card > p { min-height: 44px; margin: 0; color: #7d7a86; font-size: 8px; line-height: 1.6; }
+.investor-startup-meta { display: flex; flex-direction: column; gap: 3px; margin: 10px 0; color: #74717e; font-size: 8px; }
+.investor-startup-founder { display: flex; align-items: center; gap: 7px; padding-top: 9px; border-top: 1px solid #efedf1; }
+.investor-startup-founder > span:nth-child(2) { display: flex; flex: 1; min-width: 0; flex-direction: column; }
+.investor-startup-founder b { overflow: hidden; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.investor-startup-founder small { color: #8a8792; font-size: 7px; }
+.investor-startup-founder .text-link { flex: none; font-size: 8px; }
+.dashboard-context-note { padding: 10px 11px; border-radius: 10px; background: #f5f2fa; color: #716986; font-size: 8px; line-height: 1.6; }
+.dashboard-session-list { display: flex; flex-direction: column; }
+.dashboard-session-row, .dashboard-upcoming-row { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid #f0eff1; }
+.dashboard-session-row > div:nth-child(2), .dashboard-upcoming-row > div:nth-child(2) { display: flex; flex: 1; min-width: 0; flex-direction: column; }
+.dashboard-session-row > div:nth-child(2) > b, .dashboard-upcoming-row > div:nth-child(2) > b { font-size: 9px; text-transform: capitalize; }
+.dashboard-session-row > div:nth-child(2) > span, .dashboard-upcoming-row > div:nth-child(2) > span { color: #686573; font-size: 8px; }
+.dashboard-session-row small, .dashboard-upcoming-row small { margin-top: 3px; color: #8a8792; font-size: 7px; line-height: 1.5; }
+.dashboard-session-actions { display: flex; flex: none; flex-direction: column; align-items: flex-end; gap: 5px; }
+.dashboard-session-actions .text-link { font-size: 8px; }
+.session-date-mark { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 11px; color: #6e5c94; background: #f0ecf8; }
+.dashboard-upcoming-row .listing-status { flex: none; }
 .quiet-empty { margin: 0; padding: 20px 0; color: #8b8893; font-size: 9px; line-height: 1.7; }
 .profile-editor-card { margin-top: 17px; }
 .profile-editor-header { display: flex; align-items: center; gap: 13px; margin-bottom: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
@@ -942,9 +1004,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .dashboard-metrics, .admin-metrics { grid-template-columns: 1fr 1fr; gap: 8px; }
   .metric-card, .admin-metrics > div { min-height: 95px; padding: 12px; }
   .metric-card > strong, .admin-metrics strong { font-size: 22px; }
+  .dashboard-role-picker { gap: 6px; }
+  .dashboard-role-picker > span { width: 100%; }
+  .dashboard-role-picker button { min-height: 34px; }
   .dashboard-grid { grid-template-columns: 1fr; }
+  .dashboard-secondary-grid { grid-template-columns: 1fr; }
   .dashboard-opportunity-grid { grid-template-columns: 1fr; }
   .dashboard-bottom-row { grid-template-columns: 1fr; }
+  .investor-startup-list { grid-template-columns: 1fr; }
+  .investor-startup-card > p { min-height: auto; }
+  .dashboard-session-row { align-items: flex-start; }
+  .dashboard-session-actions { align-items: flex-end; }
+  .dashboard-stage-row { grid-template-columns: 72px minmax(40px, 1fr) 18px; gap: 7px; }
   .profile-progress-card { padding: 12px; }
   .settings-grid { grid-template-columns: 1fr; }
   .notification-item { gap: 8px; padding: 12px; }
