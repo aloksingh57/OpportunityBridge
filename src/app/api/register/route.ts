@@ -24,6 +24,7 @@ export async function POST(request: Request) {
         name: parsed.data.name,
         email: normalizedEmail,
         role: parsed.data.role,
+        roles: [...new Set([parsed.data.role, ...(parsed.data.roles ?? [])])],
         headline: `${parsed.data.role.replace("-", " ")} · new to OpportunityBridge`,
         bio: "A new member exploring opportunities and connections in this local product demo.",
         location: parsed.data.location,

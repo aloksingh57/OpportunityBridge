@@ -15,6 +15,9 @@ test("recommendations exclude ineligible listing states and explain each estimat
     assert.ok(match.reasons.length > 0);
   }
   assert.ok(matches.every((match) => match.opportunity.type !== "startup-funding"));
+  const multiRoleStudent = { ...student, roles: [...student.roles, "investor"] };
+  assert.ok(recommendOpportunities(multiRoleStudent, seedStore.opportunities, new Date())
+    .some((match) => match.opportunity.type === "startup-funding"));
 });
 
 test("application transitions permit only defined next states", () => {

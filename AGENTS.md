@@ -29,8 +29,11 @@ Build a runnable, responsive professional discovery and collaboration platform f
 
 ## Product requirements
 - Public pages: home, about, how it works, opportunities/details, people, login/register/recovery, and contact.
-- Member pages: onboarding, role-aware dashboard, profile/settings, notifications, messages, connections, saved items, applications/details, publishing, applicant management, and recommendations.
+- Member pages: onboarding, multi-role dashboard, profile/settings, notifications, messages, connections, mentoring/advisory sessions, saved items, applications/details, publishing, applicant management, and recommendations.
 - Restricted admin overview, user moderation, and opportunity moderation.
+- Investor startup discovery filtered by industry and stage.
+- Session-only PDF attachments for CV/pitch review, with requester/provider access checks on every download.
+- User reports and blocks with private admin review; demo identities must never be represented as truly verified.
 - Search/filter/sort opportunities; persist saves, applications, connections, messages, notifications, profiles, and moderation records.
 - Seed coherent fictional profiles, listings, applications, and relationships.
 - Prevent duplicate/late applications and invalid role/state changes.

@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
-  distDir: ".next-opportunitybridge",
+  distDir: ".next-opportunitybridge-build",
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

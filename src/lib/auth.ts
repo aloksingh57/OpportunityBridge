@@ -9,6 +9,7 @@ export const adminUserId = "__opportunitybridge_admin__";
 export interface Actor {
   id: string;
   role: ActorRole;
+  roles?: Role[];
   isAdmin: boolean;
 }
 
@@ -52,7 +53,7 @@ export async function getActor(cookieHeader?: string): Promise<Actor | null> {
   }
   const store = await readStore();
   const user = store.users.find((record) => record.id === userId && record.status === "active");
-  return user ? { id: user.id, role: user.role, isAdmin: false } : null;
+  return user ? { id: user.id, role: user.role, roles: user.roles, isAdmin: false } : null;
 }
 
 export async function findUser(userId: string): Promise<UserProfile | null> {
@@ -64,7 +65,7 @@ export async function requireActor(roles?: readonly Role[]): Promise<Actor> {
   const actor = await getActor();
   if (!actor) throw new Error("AUTH_REQUIRED");
   if (actor.isAdmin) return actor;
-  if (roles && !roles.includes(actor.role as Role)) throw new Error("ROLE_FORBIDDEN");
+  if (roles && !roles.some((role) => actor.roles?.includes(role) ?? actor.role === role)) throw new Error("ROLE_FORBIDDEN");
   return actor;
 }
 

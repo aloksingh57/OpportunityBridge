@@ -7,10 +7,12 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUpRight,
+  Ban,
   BadgeCheck,
   Bell,
   Bookmark,
   BriefcaseBusiness,
+  CalendarDays,
   Check,
   ChevronDown,
   Clock3,
@@ -25,6 +27,7 @@ import {
   LoaderCircle,
   MapPin,
   MessageCircle,
+  Flag,
   Plus,
   Search,
   Send,
@@ -83,7 +86,7 @@ const typeOptions = Object.entries(opportunityTypeNames) as Array<[OpportunityTy
 
 const protectedRoutes = [
   "/onboarding", "/dashboard", "/profile", "/settings", "/notifications", "/messages", "/connections",
-  "/saved", "/applications", "/publish", "/manage-opportunities", "/manage-applicants", "/recommendations",
+  "/saved", "/applications", "/publish", "/manage-opportunities", "/manage-applicants", "/recommendations", "/sessions",
 ];
 
 export function isProtectedPath(path: string): boolean {
@@ -206,6 +209,7 @@ type RenderedRoute = { node: React.ReactNode; propsHasFlash: boolean };
 function renderRoute(path: string, segments: string[], data: BootstrapData, context: RouteContext): RenderedRoute {
   if (path === "/") return { node: <LandingPage data={data} context={context} />, propsHasFlash: false };
   if (path === "/opportunities") return { node: <Marketplace data={data} context={context} />, propsHasFlash: false };
+  if (path === "/startups") return { node: <StartupDirectory data={data} context={context} />, propsHasFlash: false };
   if (path.startsWith("/opportunities/")) return { node: <OpportunityDetail id={segments[1] ?? ""} data={data} context={context} />, propsHasFlash: false };
   if (path === "/people") return { node: <PeopleDirectory data={data} context={context} />, propsHasFlash: false };
   if (path.startsWith("/people/")) return { node: <PersonDetail id={segments[1] ?? ""} data={data} context={context} />, propsHasFlash: false };
@@ -229,6 +233,7 @@ function renderRoute(path: string, segments: string[], data: BootstrapData, cont
   if (path === "/manage-opportunities") return { node: <ManageOpportunitiesPage data={data} />, propsHasFlash: false };
   if (path === "/manage-applicants") return { node: <ManageApplicantsPage data={data} context={context} />, propsHasFlash: true };
   if (path === "/recommendations") return { node: <RecommendationsPage data={data} context={context} />, propsHasFlash: false };
+  if (path === "/sessions") return { node: <SessionsPage data={data} context={context} />, propsHasFlash: true };
   if (path === "/admin" || path === "/admin/users" || path === "/admin/opportunities") return { node: <AdminPage path={path} data={data} context={context} />, propsHasFlash: true };
   return { node: <InfoPage title="We couldn?t find that page." description="This address does not match an OpportunityBridge page. Try one of the links below." action={<Link className="button button-dark" href="/">Go to the home page <ArrowRight size={16} /></Link>} />, propsHasFlash: false };
 }
@@ -245,7 +250,7 @@ function FlashMessage({ flash, onDismiss }: { flash: NonNullable<Flash>; onDismi
 
 function LandingPage({ data, context }: { data: BootstrapData; context: RouteContext }) {
   const featured = data.opportunities.filter((opportunity) => opportunity.status === "published").slice(0, 3);
-  const featuredPeople = data.people.filter((person) => ["mentor", "founder", "investor"].includes(person.role)).slice(0, 4);
+  const featuredPeople = data.people.filter((person) => person.roles.some((role) => ["mentor", "founder", "investor"].includes(role))).slice(0, 4);
   return (
     <>
       <section className="hero-section">
@@ -411,6 +416,24 @@ function EmptyState({ title, body, action }: { title: string; body: string; acti
   return <div className="empty-state"><span className="empty-state-icon"><Compass size={22} /></span><h3>{title}</h3><p>{body}</p>{action ? <div className="empty-state-action">{action}</div> : null}</div>;
 }
 
+function StartupDirectory({ data, context }: { data: BootstrapData; context: RouteContext }) {
+  const [query, setQuery] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [stage, setStage] = useState("");
+  const industries = Array.from(new Set(data.startups.map((startup) => startup.industry))).sort();
+  const startups = data.startups.filter((startup) => {
+    if (industry && startup.industry !== industry) return false;
+    if (stage && startup.stage !== stage) return false;
+    const term = query.trim().toLowerCase();
+    return !term || [startup.name, startup.industry, startup.summary, startup.founder.name, startup.founder.headline].join(" ").toLowerCase().includes(term);
+  });
+  return <div className="content-page"><PageHeading eyebrow="For founders and investors" title="Ideas worth getting to know." description="Explore fictional startup profiles by industry and stage, then connect with their founders to learn more." action={<span className="count-chip">{startups.length} sample startups</span>} />
+    <div className="startup-toolbar"><label className="search-control"><Search size={17} /><span className="sr-only">Search startup profiles</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search a company, industry, or founder" /></label><label>Industry<select value={industry} onChange={(event) => setIndustry(event.target.value)}><option value="">All industries</option>{industries.map((item) => <option key={item}>{item}</option>)}</select></label><label>Stage<select value={stage} onChange={(event) => setStage(event.target.value)}><option value="">All stages</option>{["idea", "pre-seed", "seed", "series-a"].map((item) => <option value={item} key={item}>{item.replace("-", " ")}</option>)}</select></label></div>
+    <p className="results-summary">All funding details and organizations below are fictional demonstration data, not investment offers.</p>
+    {startups.length ? <div className="startup-grid">{startups.map((startup) => <article className="startup-card" key={startup.id}><div className="startup-card-head"><span className="category-mark category-mint"><Lightbulb size={18} /></span><span className="demo-pill">DEMO STARTUP</span></div><p className="eyebrow">{startup.industry}</p><h2>{startup.name}</h2><span className="startup-stage">{startup.stage.replace("-", " ")}</span><p>{startup.summary}</p><div className="startup-funding"><span>Funding signal <strong>{startup.fundingAskInr === null ? "Exploring" : `₹${new Intl.NumberFormat("en-IN").format(startup.fundingAskInr)}`}</strong></span><Link className="text-link" href={`/people/${startup.founder.id}`}>Founder profile <ArrowRight size={14} /></Link></div><PersonCard person={startup.founder} data={data} context={context} /></article>)}</div> : <EmptyState title="No startups match these filters." body="Try a different industry, stage, or search term." action={<button type="button" className="button button-light" onClick={() => { setIndustry(""); setStage(""); setQuery(""); }}>Clear filters</button>} />}
+  </div>;
+}
+
 function OpportunityDetail({ id, data, context }: { id: string; data: BootstrapData; context: RouteContext }) {
   const opportunity = data.opportunities.find((item) => item.id === id);
   if (!opportunity || (opportunity.status !== "published" && opportunity.publisherId !== data.currentUser?.id && !data.isAdmin)) {
@@ -418,7 +441,7 @@ function OpportunityDetail({ id, data, context }: { id: string; data: BootstrapD
   }
   const publisher = data.people.find((person) => person.id === opportunity.publisherId);
   const hasApplied = data.applications.some((application) => application.opportunityId === opportunity.id && application.applicantId === data.currentUser?.id);
-  const canApply = data.currentUser?.role === "student" || data.currentUser?.role === "job-seeker";
+  const canApply = Boolean(data.currentUser?.roles.some((role) => role === "student" || role === "job-seeker"));
   const deadlinePassed = new Date(opportunity.deadline) < new Date();
   const related = data.opportunities.filter((item) => item.id !== opportunity.id && item.status === "published" && item.category === opportunity.category).slice(0, 2);
   return (
@@ -440,6 +463,7 @@ function OpportunityDetail({ id, data, context }: { id: string; data: BootstrapD
           {publisher ? <div className="detail-side-card publisher-card"><span className="eyebrow">THE PUBLISHER</span><div className="person-identity"><PersonAvatar person={publisher} /><span><b>{publisher.name}</b><small>{roleNames[publisher.role]} · demo profile</small></span></div><p>{publisher.headline}</p><Link className="text-link" href={`/people/${publisher.id}`}>View public profile <ArrowRight size={15} /></Link></div> : null}
         </aside>
       </div>
+      {data.currentUser && data.currentUser.id !== opportunity.publisherId ? <div className="opportunity-safety-actions"><ReportContentForm targetType="opportunity" targetId={opportunity.id} context={context} /></div> : null}
       {related.length ? <section className="related-section"><SectionIntro eyebrow="Keep exploring" title="A few more possibilities" description="Related opportunities from this sample collection." /><div className="opportunity-grid">{related.map((item) => <OpportunityCard key={item.id} opportunity={item} saved={data.savedOpportunityIds.includes(item.id)} onSave={() => handleSave(item, data, context)} compact />)}</div></section> : null}
     </div>
   );
@@ -466,7 +490,7 @@ function PeopleDirectory({ data, context }: { data: BootstrapData; context: Rout
   const [location, setLocation] = useState("");
   const people = data.people.filter((person) => {
     if (person.id === data.currentUser?.id) return false;
-    if (role && person.role !== role) return false;
+    if (role && !person.roles.includes(role as Role)) return false;
     if (skill && !person.skills.some((item) => item.toLowerCase() === skill.toLowerCase())) return false;
     if (interest && !person.interests.some((item) => item.toLowerCase().includes(interest.toLowerCase()))) return false;
     if (location && !person.location.toLowerCase().includes(location.toLowerCase())) return false;
@@ -511,18 +535,59 @@ function PersonCard({ person, data, context }: { person: PublicUser; data: Boots
       void context.performAction({ type: "connection-request", recipientId: person.id });
     }
   };
-  return <article className="person-card"><div className={`person-card-top tone-${person.role}`}><span className="person-role-tag">{roleNames[person.role]}</span><PersonAvatar person={person} large /></div><div className="person-card-body"><Link href={`/people/${person.id}`}><h3>{person.name}</h3></Link><p className="person-headline">{person.headline}</p><span className="person-location"><MapPin size={14} />{person.location}</span><p className="person-bio">{person.bio}</p><div className="skill-list">{person.skills.slice(0, 3).map((item) => <span className="skill-pill" key={item}>{item}</span>)}</div><div className="person-card-actions"><button type="button" className={`button ${connection?.status === "accepted" ? "button-light" : "button-dark"} button-small`} onClick={handleConnect}>{connection?.status === "accepted" ? <><MessageCircle size={15} />Message</> : connection?.status === "pending" && connection.recipientId === data.currentUser?.id ? "Accept request" : connection?.status === "pending" ? "Cancel request" : <><Handshake size={15} />Connect</>}</button>{data.currentUser ? <button className={`icon-button save-button ${saved ? "is-saved" : ""}`} type="button" onClick={() => void context.performAction({ type: "save-profile", profileId: person.id, saved: !saved })} aria-label={saved ? `Unsave ${person.name}` : `Save ${person.name}`}><Bookmark size={16} /></button> : null}<Link className="text-link" href={`/people/${person.id}`}>Profile <ArrowRight size={14} /></Link></div>{actionError ? <p className="inline-action-error" role="alert">{actionError}</p> : null}</div></article>;
+  return <article className="person-card"><div className={`person-card-top tone-${person.role}`}><span className="person-role-tag">{person.roles.map((role) => roleNames[role]).join(" · ")}</span><PersonAvatar person={person} large /></div><div className="person-card-body"><Link href={`/people/${person.id}`}><h3>{person.name}</h3></Link><p className="person-headline">{person.headline}</p><span className="person-location"><MapPin size={14} />{person.location}</span><p className="person-bio">{person.bio}</p><div className="skill-list">{person.skills.slice(0, 3).map((item) => <span className="skill-pill" key={item}>{item}</span>)}</div><div className="person-card-actions"><button type="button" className={`button ${connection?.status === "accepted" ? "button-light" : "button-dark"} button-small`} onClick={handleConnect}>{connection?.status === "accepted" ? <><MessageCircle size={15} />Message</> : connection?.status === "pending" && connection.recipientId === data.currentUser?.id ? "Accept request" : connection?.status === "pending" ? "Cancel request" : <><Handshake size={15} />Connect</>}</button>{data.currentUser ? <button className={`icon-button save-button ${saved ? "is-saved" : ""}`} type="button" onClick={() => void context.performAction({ type: "save-profile", profileId: person.id, saved: !saved })} aria-label={saved ? `Unsave ${person.name}` : `Save ${person.name}`}><Bookmark size={16} /></button> : null}<Link className="text-link" href={`/people/${person.id}`}>Profile <ArrowRight size={14} /></Link></div>{actionError ? <p className="inline-action-error" role="alert">{actionError}</p> : null}</div></article>;
 }
 
 function PersonDetail({ id, data, context }: { id: string; data: BootstrapData; context: RouteContext }) {
   const person = data.people.find((item) => item.id === id);
   if (!person) return <InfoPage title="We couldn?t find that profile." description="This fictional profile may have been removed or isn?t available in the demo community." action={<Link className="button button-dark" href="/people">Meet the community <ArrowRight size={16} /></Link>} />;
-  return <div className="content-page"><Link className="back-link" href="/people"><ArrowLeft size={16} /> Meet the community</Link><div className="profile-detail-card"><div className={`profile-detail-cover tone-${person.role}`}><PersonAvatar person={person} large /><span className="person-role-tag">{roleNames[person.role]} · fictional demo profile</span></div><div className="profile-detail-body"><h1>{person.name}</h1><p className="person-headline">{person.headline}</p><span className="person-location"><MapPin size={14} />{person.location}</span><p className="profile-bio">{person.bio}</p><div className="detail-section"><p className="eyebrow">Skills</p><div className="skill-list skill-list-large">{person.skills.map((item) => <span className="skill-pill" key={item}>{item}</span>)}</div></div><div className="detail-section"><p className="eyebrow">Interests</p><div className="role-chips">{person.interests.map((item) => <span key={item}>{item}</span>)}</div></div>{data.currentUser && data.currentUser.id !== person.id ? <PersonCard person={person} data={data} context={context} /> : null}</div></div></div>;
+  const canBook = person.roles.some((role) => role === "mentor" || role === "advisor");
+  const isSelf = data.currentUser?.id === person.id;
+  return <div className="content-page"><Link className="back-link" href="/people"><ArrowLeft size={16} /> Meet the community</Link><div className="profile-detail-card"><div className={`profile-detail-cover tone-${person.role}`}><PersonAvatar person={person} large /><span className="person-role-tag">{person.roles.map((role) => roleNames[role]).join(" · ")} · fictional demo profile</span></div><div className="profile-detail-body"><h1>{person.name}</h1><p className="person-headline">{person.headline}</p><span className="person-location"><MapPin size={14} />{person.location}</span><p className="profile-bio">{person.bio}</p><div className="detail-section"><p className="eyebrow">Skills</p><div className="skill-list skill-list-large">{person.skills.map((item) => <span className="skill-pill" key={item}>{item}</span>)}</div></div><div className="detail-section"><p className="eyebrow">Interests</p><div className="role-chips">{person.interests.map((item) => <span key={item}>{item}</span>)}</div></div>{!isSelf && data.currentUser ? <PersonCard person={person} data={data} context={context} /> : null}{!isSelf && canBook ? <SessionRequestForm provider={person} context={context} /> : null}{!isSelf && data.currentUser ? <div className="profile-safety-actions"><button type="button" className="text-button" onClick={() => void context.performAction({ type: "block-user", userId: person.id, blocked: !data.blockedProfileIds.includes(person.id) })}><Ban size={15} />{data.blockedProfileIds.includes(person.id) ? "Unblock profile" : "Block profile"}</button><ReportContentForm targetType="user" targetId={person.id} context={context} /></div> : null}</div></div></div>;
+}
+
+function SessionRequestForm({ provider, context }: { provider: PublicUser; context: RouteContext }) {
+  const services = [
+    ...(provider.roles.includes("mentor") ? [["mentorship", "Mentoring session"], ["cv-review", "CV review"]] : []),
+    ...(provider.roles.includes("advisor") ? [["pitch-review", "Pitch deck review"], ["strategy", "Strategic guidance"]] : []),
+  ] as Array<[string, string]>;
+  return <form className="apply-form" onSubmit={(event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const localTime = String(form.get("scheduledFor") ?? "");
+    const scheduledFor = localTime ? new Date(localTime).toISOString() : null;
+    void context.performAction({
+      type: "session-request",
+      providerId: provider.id,
+      serviceType: form.get("serviceType"),
+      requestNote: form.get("requestNote"),
+      scheduledFor,
+    });
+  }}>
+    <p className="eyebrow">LEARN TOGETHER</p><h2>Request a session</h2><p>This sends a local demo request. No payment or calendar invite is created.</p>
+    <label>What kind of help?<select name="serviceType" required>{services.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+    <label>Propose a time <span className="optional-label">Optional</span><input type="datetime-local" name="scheduledFor" /></label>
+    <label>What would you like to discuss?<textarea name="requestNote" rows={3} maxLength={500} placeholder="Share a little context." /></label>
+    <button className="button button-dark" type="submit" disabled={context.busy}><CalendarDays size={16} />Send session request</button>
+  </form>;
+}
+
+function ReportContentForm({ targetType, targetId, context }: { targetType: "user" | "opportunity"; targetId: string; context: RouteContext }) {
+  return <details className="report-control"><summary><Flag size={15} />Report {targetType === "user" ? "profile" : "listing"}</summary><form className="form-stack" onSubmit={(event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    void context.performAction({ type: "report-content", targetType, targetId, reason: form.get("reason"), details: form.get("details") });
+    event.currentTarget.reset();
+  }}>
+    <label>Reason<select name="reason" required><option value="">Choose a reason</option><option>Misleading information</option><option>Spam or scam</option><option>Harassment or unsafe content</option><option>Other trust concern</option></select></label>
+    <label>Details <span className="optional-label">Optional</span><textarea name="details" maxLength={500} rows={3} /></label>
+    <button type="submit" className="button button-light button-small" disabled={context.busy}>Send private report</button>
+  </form></details>;
 }
 
 function LoginPage({ data, context }: { data: BootstrapData; context: RouteContext }) {
   const [roleFilter, setRoleFilter] = useState("");
-  const demoPeople = data.people.filter((person) => !roleFilter || person.role === roleFilter);
+  const demoPeople = data.people.filter((person) => !roleFilter || person.roles.includes(roleFilter as Role));
   return <div className="auth-page"><div className="auth-card"><div className="auth-icon"><Compass size={22} /></div><p className="eyebrow">WELCOME TO OPPORTUNITYBRIDGE</p><h1>Find your way in.</h1><p>Choose a sample profile to explore a different perspective. This local demo has no password-based login.</p>
     <label>Select a demo profile<select id="demo-persona" defaultValue="" onChange={(event) => setRoleFilter(event.target.value)}><option value="">All demo roles</option>{Object.entries(roleNames).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
     <div className="demo-profile-list">{demoPeople.map((person) => <button key={person.id} type="button" className={`demo-profile-choice ${data.currentUser?.id === person.id ? "is-current" : ""}`} onClick={() => void context.switchDemo(person.id)}><PersonAvatar person={person} /><span><b>{person.name}</b><small>{roleNames[person.role]} · demo profile</small></span><ArrowRight size={17} /></button>)}</div>
@@ -540,11 +605,13 @@ function RegisterPage({ data, context }: { data: BootstrapData; context: RouteCo
     setSubmitting(true);
     const form = new FormData(event.currentTarget);
     const skills = String(form.get("skills") ?? "").split(",").map((item) => item.trim()).filter(Boolean);
+    const roles = form.getAll("roles").map(String);
     try {
       await context.postJson("/api/register", {
         name: form.get("name"),
         email: form.get("email"),
         role: form.get("role"),
+        roles,
         location: form.get("location"),
         skills,
       });
@@ -560,6 +627,7 @@ function RegisterPage({ data, context }: { data: BootstrapData; context: RouteCo
       <label>Your name<input name="name" required minLength={2} maxLength={80} autoComplete="name" placeholder="e.g. Aarav Sharma" /></label>
       <label>Email for this demo<input name="email" type="email" required maxLength={150} autoComplete="email" placeholder="you@example.com" /><small className="field-hint">Used only to identify your local demo profile; no email is sent.</small></label>
       <label>How do you see yourself here?<select name="role" required defaultValue="student">{Object.entries(roleNames).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      <fieldset className="role-choice-set"><legend>Activate other roles too <span className="optional-label">Optional</span></legend><p className="field-hint">One account can take part in more than one way. You can change these later.</p>{Object.entries(roleNames).map(([value, label]) => <label className="checkbox-label" key={value}><input type="checkbox" name="roles" value={value} />{label}</label>)}</fieldset>
       <label>City or region<input name="location" required minLength={2} maxLength={100} placeholder="e.g. Pune, India" /></label>
       <label>Your skills <span className="optional-label">Optional · separate with commas</span><input name="skills" maxLength={300} placeholder="e.g. React, research, writing" /></label>
       <label className="checkbox-label"><input type="checkbox" required />I understand this creates fictional local demo data, not a production account.</label>
@@ -616,11 +684,12 @@ function DashboardPage({ data, context }: { data: BootstrapData; context: RouteC
   const greeting = user.name.split(" ")[0];
   const title = user.role === "founder" ? "Build something worth joining." : user.role === "investor" ? "Meet the founders shaping what?s next." : user.role === "mentor" ? "Your experience can open a door." : user.role === "advisor" ? "Good advice starts with listening." : user.role === "recruiter" ? "Find people who make the work better." : user.role === "job-seeker" ? "Your next role is closer than it feels." : "A small step can open a big door.";
   const publisherApplications = data.applications.filter((item) => item.opportunity?.publisherId === user.id);
-  const featured = user.role === "founder" ? data.people.filter((item) => ["investor", "advisor", "mentor"].includes(item.role)) : data.people.filter((item) => ["mentor", "founder", "recruiter"].includes(item.role));
+  const canPublish = user.roles.some((role) => role === "founder" || role === "recruiter");
+  const featured = user.roles.includes("founder") ? data.people.filter((item) => item.roles.some((role) => ["investor", "advisor", "mentor"].includes(role))) : data.people.filter((item) => item.roles.some((role) => ["mentor", "founder", "recruiter"].includes(role)));
   const matching = recommendOpportunities(findStoredUser(user, data.people), data.opportunities.filter((item) => item.status === "published"), new Date()).slice(0, 3);
   return <div className="content-page dashboard-page"><div className="dashboard-welcome"><div><p className="eyebrow">{roleNames[user.role].toUpperCase()} SPACE · DEMO</p><h1>Hi, {greeting}.<br /><span>{title}</span></h1><p>Here are a few useful next steps for the path you?re exploring.</p></div><div className="welcome-sparkle"><Sparkles size={31} /></div></div>
     <div className="dashboard-metrics">
-      {(user.role === "founder" || user.role === "recruiter" ? [
+      {(canPublish ? [
         ["Published listings", data.metrics.publishedOpportunities, "/manage-opportunities", "Your opportunities"],
         ["Applications to review", data.metrics.applicants, "/manage-applicants", "Publisher inbox"],
         ["Connections", data.metrics.connections, "/connections", "People in your circle"],
@@ -633,8 +702,8 @@ function DashboardPage({ data, context }: { data: BootstrapData; context: RouteC
       ]).map(([label, value, href, detail]) => <Link className="metric-card" key={String(label)} href={String(href)}><span>{label}</span><strong>{value}</strong><small>{detail} <ArrowUpRight size={13} /></small></Link>)}
     </div>
     <div className="dashboard-grid">
-      <section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">{user.role === "founder" || user.role === "recruiter" ? "YOUR PUBLISHING SPACE" : "A GOOD PLACE TO START"}</p><h2>{user.role === "founder" || user.role === "recruiter" ? "Keep the work moving." : "Picked with you in mind."}</h2></div><Link className="text-link" href={user.role === "founder" || user.role === "recruiter" ? "/manage-applicants" : "/recommendations"}>See all <ArrowRight size={15} /></Link></div>
-        {user.role === "founder" || user.role === "recruiter" ? <div className="dashboard-list">{publisherApplications.slice(0, 4).map((application) => <ApplicationRow key={application.id} application={application} />)}{publisherApplications.length === 0 ? <EmptyState title="No applications to review yet." body="Published opportunities will gather applications here as your demo story unfolds." action={<Link className="button button-dark" href="/publish">Publish an opportunity <Plus size={16} /></Link>} /> : null}</div> : <div className="opportunity-grid dashboard-opportunity-grid">{matching.map(({ opportunity, score }) => <OpportunityCard key={opportunity.id} opportunity={opportunity} saved={data.savedOpportunityIds.includes(opportunity.id)} onSave={() => handleSave(opportunity, data, context)} compact score={score} />)}</div>}
+      <section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">{canPublish ? "YOUR PUBLISHING SPACE" : "A GOOD PLACE TO START"}</p><h2>{canPublish ? "Keep the work moving." : "Picked with you in mind."}</h2></div><Link className="text-link" href={canPublish ? "/manage-applicants" : "/recommendations"}>See all <ArrowRight size={15} /></Link></div>
+        {canPublish ? <div className="dashboard-list">{publisherApplications.slice(0, 4).map((application) => <ApplicationRow key={application.id} application={application} />)}{publisherApplications.length === 0 ? <EmptyState title="No applications to review yet." body="Published opportunities will gather applications here as your demo story unfolds." action={<Link className="button button-dark" href="/publish">Publish an opportunity <Plus size={16} /></Link>} /> : null}</div> : <div className="opportunity-grid dashboard-opportunity-grid">{matching.map(({ opportunity, score }) => <OpportunityCard key={opportunity.id} opportunity={opportunity} saved={data.savedOpportunityIds.includes(opportunity.id)} onSave={() => handleSave(opportunity, data, context)} compact score={score} />)}</div>}
       </section>
       <aside className="dashboard-panel people-panel"><div className="panel-heading"><div><p className="eyebrow">PEOPLE YOU COULD MEET</p><h2>A few good introductions.</h2></div><Link href="/people" className="icon-button" aria-label="Browse all people"><ArrowRight size={16} /></Link></div><div className="suggested-people">{featured.slice(0, 4).map((person) => <Link className="suggested-person" key={person.id} href={`/people/${person.id}`}><PersonAvatar person={person} /><span><b>{person.name}</b><small>{roleNames[person.role]} · demo</small></span><ArrowUpRight size={15} /></Link>)}</div><Link href="/people" className="panel-footer-link">Explore the community <ArrowRight size={14} /></Link></aside>
     </div>
@@ -645,13 +714,13 @@ function DashboardPage({ data, context }: { data: BootstrapData; context: RouteC
 function ProfilePage({ data, context }: { data: BootstrapData; context: RouteContext }) {
   const user = data.currentUser;
   if (!user) return <InfoPage title="Your profile lives with your demo session." description="Choose a demo profile to view and edit its public details." action={<Link className="button button-dark" href="/login">Choose a demo profile <ArrowRight size={16} /></Link>} />;
-  return <div className="content-page narrow-page"><PageHeading eyebrow="Your story, your way" title="Your profile." description="A little context helps people understand what you want to build and what you can bring." /><div className="profile-editor-card"><div className="profile-editor-header"><PersonAvatar person={user} large /><div><span className="demo-pill">DEMO PROFILE</span><h2>{user.name}</h2><p>{roleNames[user.role]} · visible to the demo community</p></div><span className="profile-completion-tag">{data.metrics.profileCompletion}% complete</span></div><form className="form-stack" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const tags = (name: string) => String(form.get(name) ?? "").split(",").map((item) => item.trim()).filter(Boolean); void context.performAction({ type: "update-profile", headline: form.get("headline"), bio: form.get("bio"), location: form.get("location"), skills: tags("skills"), interests: tags("interests"), remotePreference: form.get("remotePreference") }); }}>
-    <label>Headline<input name="headline" defaultValue={user.headline} maxLength={140} required /></label><label>About you<textarea name="bio" rows={4} defaultValue={user.bio} maxLength={500} /></label><label>Location<input name="location" defaultValue={user.location} maxLength={100} required /></label><label>Skills <span className="optional-label">Separate with commas</span><input name="skills" defaultValue={user.skills.join(", ")} maxLength={300} /></label><label>Interests <span className="optional-label">Separate with commas</span><input name="interests" defaultValue={user.interests.join(", ")} maxLength={300} /></label><label>Location preference<select name="remotePreference" defaultValue={user.remotePreference}><option value="any">Remote or nearby</option><option value="remote">Remote</option><option value="onsite">On-site</option></select></label><div className="form-hint"><ShieldCheck size={15} />Email, private applicant notes, and admin tools are never part of a public profile.</div><button className="button button-dark" type="submit" disabled={context.busy}>Save profile <Check size={16} /></button>
+  return <div className="content-page narrow-page"><PageHeading eyebrow="Your story, your way" title="Your profile." description="A little context helps people understand what you want to build and what you can bring." /><div className="profile-editor-card"><div className="profile-editor-header"><PersonAvatar person={user} large /><div><span className="demo-pill">DEMO PROFILE</span><h2>{user.name}</h2><p>{user.roles.map((role) => roleNames[role]).join(" · ")} · visible to the demo community</p></div><span className="profile-completion-tag">{data.metrics.profileCompletion}% complete</span></div><form className="form-stack" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const tags = (name: string) => String(form.get(name) ?? "").split(",").map((item) => item.trim()).filter(Boolean); void context.performAction({ type: "update-profile", headline: form.get("headline"), bio: form.get("bio"), location: form.get("location"), skills: tags("skills"), interests: tags("interests"), remotePreference: form.get("remotePreference"), roles: form.getAll("roles").map(String) }); }}>
+    <label>Headline<input name="headline" defaultValue={user.headline} maxLength={140} required /></label><label>About you<textarea name="bio" rows={4} defaultValue={user.bio} maxLength={500} /></label><label>Location<input name="location" defaultValue={user.location} maxLength={100} required /></label><label>Skills <span className="optional-label">Separate with commas</span><input name="skills" defaultValue={user.skills.join(", ")} maxLength={300} /></label><label>Interests <span className="optional-label">Separate with commas</span><input name="interests" defaultValue={user.interests.join(", ")} maxLength={300} /></label><label>Location preference<select name="remotePreference" defaultValue={user.remotePreference}><option value="any">Remote or nearby</option><option value="remote">Remote</option><option value="onsite">On-site</option></select></label><fieldset className="role-choice-set"><legend>Roles on your account</legend><p className="field-hint">Permissions use all selected roles. Keep at least one active role.</p>{Object.entries(roleNames).map(([value, label]) => <label className="checkbox-label" key={value}><input type="checkbox" name="roles" value={value} defaultChecked={user.roles.includes(value as Role)} />{label}</label>)}</fieldset><div className="form-hint"><ShieldCheck size={15} />Email, private applicant notes, and admin tools are never part of a public profile.</div><button className="button button-dark" type="submit" disabled={context.busy}>Save profile <Check size={16} /></button>
   </form></div></div>;
 }
 
 function SettingsPage({ data, context }: { data: BootstrapData; context: RouteContext }) {
-  return <div className="content-page"><PageHeading eyebrow="Your preferences" title="A space that feels like yours." description="This demo stores your activity in a local file on this server. No email, calendar, or third-party integration is configured." /><div className="settings-grid"><section className="settings-card"><span className="settings-icon"><Users size={19} /></span><h2>Explore a different point of view</h2><p>Choose another fictional profile to see a different role?s dashboard. This never grants administrator access.</p><label>Demo persona<select value={data.currentUser?.id ?? ""} onChange={(event) => void context.switchDemo(event.target.value)}>{data.people.map((person) => <option key={person.id} value={person.id}>{person.name} · {roleNames[person.role]}</option>)}</select></label></section><section className="settings-card"><span className="settings-icon"><ShieldCheck size={19} /></span><h2>Privacy & data</h2><ul className="privacy-list"><li><Check size={15} />Demo records are labeled and fictional.</li><li><Check size={15} />Passwords are not collected in demo login.</li><li><Check size={15} />Conversations are limited to participants.</li><li><Check size={15} />Admin access requires a separate server-side key.</li></ul></section><section className="settings-card"><span className="settings-icon"><Bell size={19} /></span><h2>Notifications</h2><p>{data.metrics.unreadNotifications} unread notification{data.metrics.unreadNotifications === 1 ? "" : "s"} are attached to this demo profile.</p><Link className="text-link" href="/notifications">Review notification center <ArrowRight size={15} /></Link></section><section className="settings-card"><span className="settings-icon"><CircleHelp size={19} /></span><h2>Reset demo activity</h2><p>To restore the original sample data, stop the dev server and remove <code>.data/opportunitybridge.json</code>. The app seeds a fresh copy next time it starts.</p><p className="field-hint">Do not use the local JSON store as a multi-user production database.</p></section></div></div>;
+  return <div className="content-page"><PageHeading eyebrow="Your preferences" title="A space that feels like yours." description="This demo stores your activity in a local file on this server. No email, calendar, or third-party integration is configured." /><div className="settings-grid"><section className="settings-card"><span className="settings-icon"><Users size={19} /></span><h2>Explore a different point of view</h2><p>Choose another fictional profile to see a different role?s dashboard. This never grants administrator access.</p><label>Demo persona<select value={data.currentUser?.id ?? ""} onChange={(event) => void context.switchDemo(event.target.value)}>{data.people.map((person) => <option key={person.id} value={person.id}>{person.name} · {person.roles.map((role) => roleNames[role]).join(", ")}</option>)}</select></label></section><section className="settings-card"><span className="settings-icon"><ShieldCheck size={19} /></span><h2>Privacy & data</h2><ul className="privacy-list"><li><Check size={15} />Demo records are labeled and fictional.</li><li><Check size={15} />Passwords are not collected in demo login.</li><li><Check size={15} />Conversations are limited to participants.</li><li><Check size={15} />Reports are private to the reporter and admins.</li></ul></section><section className="settings-card"><span className="settings-icon"><CalendarDays size={19} /></span><h2>Mentoring sessions</h2><p>Review your private mentoring, CV review, pitch review, and advisory session requests.</p><Link className="text-link" href="/sessions">Open your sessions <ArrowRight size={15} /></Link></section><section className="settings-card"><span className="settings-icon"><Ban size={19} /></span><h2>Blocked profiles</h2>{data.blockedProfiles.length ? <ul className="blocked-profile-list">{data.blockedProfiles.map((person) => <li key={person.id}><span>{person.name}</span><button type="button" className="text-button" onClick={() => void context.performAction({ type: "block-user", userId: person.id, blocked: false })}>Unblock</button></li>)}</ul> : <p>You have not blocked any demo profiles.</p>}</section><section className="settings-card"><span className="settings-icon"><Bell size={19} /></span><h2>Notifications</h2><p>{data.metrics.unreadNotifications} unread notification{data.metrics.unreadNotifications === 1 ? "" : "s"} are attached to this demo profile.</p><Link className="text-link" href="/notifications">Review notification center <ArrowRight size={15} /></Link></section><section className="settings-card"><span className="settings-icon"><CircleHelp size={19} /></span><h2>Reset demo activity</h2><p>To restore the original sample data, stop the dev server and remove <code>.data/opportunitybridge.json</code>. The app seeds a fresh copy next time it starts.</p><p className="field-hint">Do not use the local JSON store as a multi-user production database.</p></section></div></div>;
 }
 
 function NotificationsPage({ data, context }: { data: BootstrapData; context: RouteContext }) {
@@ -719,6 +788,56 @@ function SavedPage({ data, context }: { data: BootstrapData; context: RouteConte
     <section className="saved-section"><div className="panel-heading"><div><p className="eyebrow">OPPORTUNITIES</p><h2>{opportunities.length} saved listing{opportunities.length === 1 ? "" : "s"}</h2></div><Link className="text-link" href="/opportunities">Find more <ArrowRight size={15} /></Link></div>{opportunities.length ? <div className="opportunity-grid">{opportunities.map((opportunity) => <OpportunityCard key={opportunity.id} opportunity={opportunity} saved onSave={() => handleSave(opportunity, data, context)} compact />)}</div> : <EmptyState title="Your saved list is waiting." body="Save an opportunity to keep it close at hand." action={<Link className="button button-light" href="/opportunities">Explore opportunities <ArrowRight size={15} /></Link>} />}</section>
     <section className="saved-section"><div className="panel-heading"><div><p className="eyebrow">PEOPLE</p><h2>{profiles.length} saved profile{profiles.length === 1 ? "" : "s"}</h2></div><Link className="text-link" href="/people">Meet more people <ArrowRight size={15} /></Link></div>{profiles.length ? <div className="people-grid">{profiles.map((person) => <PersonCard key={person.id} person={person} data={data} context={context} />)}</div> : <p className="quiet-empty">Save a profile that inspires you and come back when you?re ready.</p>}</section>
   </div>;
+}
+
+function SessionsPage({ data, context }: { data: BootstrapData; context: RouteContext }) {
+  const currentUser = data.currentUser;
+  if (!currentUser) return <InfoPage title="Choose a profile to see your sessions." description="Mentoring and advisory requests are private to the people involved." action={<Link className="button button-dark" href="/login">Choose a demo profile <ArrowRight size={16} /></Link>} />;
+  const sessions = [...data.mentoringSessions].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const update = (sessionId: string, action: "accept" | "decline" | "cancel" | "complete") =>
+    void context.performAction({ type: "session-update", sessionId, action });
+  return <div className="content-page">
+    <PageHeading eyebrow="Guidance, with a next step" title="Mentoring & advisory." description="Session requests are private to the requester and provider. Booking here does not create a calendar invite or payment." action={<Link className="button button-dark button-small" href="/people">Find a mentor <Users size={15} /></Link>} />
+    {sessions.length ? <div className="session-list">{sessions.map((session) => {
+      const isProvider = session.providerId === currentUser.id;
+      const canRespond = isProvider && session.status === "requested";
+      const canCancel = !isProvider && (session.status === "requested" || session.status === "accepted");
+      const canComplete = isProvider && session.status === "accepted" && (!session.scheduledFor || new Date(session.scheduledFor) <= new Date());
+      return <article className="session-card" key={session.id}>
+        <PersonAvatar person={session.otherPerson} />
+        <div className="session-card-copy"><span className="demo-pill">LOCAL DEMO SESSION</span><h2>{session.serviceType.replaceAll("-", " ")}</h2><p>{isProvider ? "Requested by" : "With"} <Link href={`/people/${session.otherPerson.id}`}>{session.otherPerson.name}</Link></p>{session.requestNote ? <p>{session.requestNote}</p> : null}<small>{session.scheduledFor ? `Proposed ${new Date(session.scheduledFor).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}` : "Time to be agreed directly"} · updated {new Date(session.updatedAt).toLocaleDateString("en-IN")}</small></div>
+        <span className={`listing-status listing-${session.status}`}>{session.status}</span>
+        <div className="session-card-actions">{canRespond ? <><button type="button" className="button button-dark button-small" disabled={context.busy} onClick={() => update(session.id, "accept")}>Accept</button><button type="button" className="button button-light button-small" disabled={context.busy} onClick={() => update(session.id, "decline")}>Decline</button></> : null}{canCancel ? <button type="button" className="button button-light button-small" disabled={context.busy} onClick={() => update(session.id, "cancel")}>Cancel request</button> : null}{canComplete ? <button type="button" className="button button-soft button-small" disabled={context.busy} onClick={() => update(session.id, "complete")}>Mark complete</button> : null}{session.documents.map((document) => <a className="button button-light button-small" href={`/api/session-documents/${document.id}`} key={document.id}><FileCheck2 size={14} />{document.fileName}</a>)}</div>
+        {!isProvider && (session.serviceType === "cv-review" || session.serviceType === "pitch-review") && (session.status === "requested" || session.status === "accepted") ? <SessionDocumentForm sessionId={session.id} context={context} /> : null}
+      </article>;
+    })}</div> : <EmptyState title="Your mentoring calendar is clear." body="Explore mentor or advisor profiles and request a session when you find someone who fits." action={<Link className="button button-dark" href="/people">Explore people <Users size={15} /></Link>} />}
+  </div>;
+}
+
+function SessionDocumentForm({ sessionId, context }: { sessionId: string; context: RouteContext }) {
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  async function upload(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setNotice("");
+    setError("");
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/documents`, { method: "POST", body: form });
+      const result: unknown = await response.json();
+      if (!response.ok) {
+        const message = result && typeof result === "object" && "error" in result && typeof result.error === "string" ? result.error : "The document could not be uploaded.";
+        throw new Error(message);
+      }
+      setNotice("Private PDF uploaded. Only you and an accepted review provider can access it.");
+      formElement.reset();
+      context.navigate("/sessions");
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "The document could not be uploaded.");
+    }
+  }
+  return <form className="session-document-form" onSubmit={upload}><label>Share a private PDF <input type="file" name="file" accept="application/pdf,.pdf" required /></label><button type="submit" className="button button-light button-small">Upload securely</button>{notice ? <span role="status">{notice}</span> : null}{error ? <span role="alert">{error}</span> : null}<small>PDF only · 5 MB max · stored locally on this server</small></form>;
 }
 
 const statusLabels: Record<ApplicationStatus, string> = {
@@ -800,11 +919,14 @@ function PublishPage({ data, context }: { data: BootstrapData; context: RouteCon
       setSubmitting(false);
     }
   }
-  const allowedTypes: OpportunityType[] = data.currentUser?.role === "mentor"
-    ? ["mentorship"]
-    : data.currentUser?.role === "advisor"
-      ? ["advisory"]
-      : typeOptions.map(([type]) => type);
+  const userRoles = data.currentUser?.roles ?? [];
+  const allowedTypes: OpportunityType[] = userRoles.some((role) => ["founder", "recruiter"].includes(role))
+    ? typeOptions.map(([type]) => type)
+    : [
+        ...(userRoles.includes("mentor") ? ["mentorship" as const] : []),
+        ...(userRoles.includes("advisor") ? ["advisory" as const] : []),
+      ];
+  if (allowedTypes.length === 0) return <InfoPage title="Your profile cannot publish yet." description="Publishing is available to founder, recruiter, mentor, and advisor roles. Add one of these roles in your profile to continue." action={<Link className="button button-dark" href="/profile">Update your roles <ArrowRight size={16} /></Link>} />;
   return <div className="content-page narrow-page"><PageHeading eyebrow="Give a good idea room to grow" title="Publish an opportunity." description="Create a fictional demo listing that connects your idea with someone ready to make it real." /><div className="form-card publish-form-card"><div className="demo-note-inline"><Sparkles size={16} /><span>New listings are immediately visible in the local demo and clearly labeled as fictional.</span></div>{error ? <FlashMessage flash={{ tone: "error", message: error }} /> : null}<form className="form-stack" onSubmit={submit}>
     <label>Opportunity title<input name="title" required minLength={1} maxLength={100} placeholder="e.g. Product Design Intern" /></label>
     <div className="form-row"><label>Type<select name="type" required>{allowedTypes.map((type) => <option key={type} value={type}>{opportunityTypeNames[type]}</option>)}</select></label><label>Category<input name="category" required maxLength={50} placeholder="Engineering, Climate, Design…" /></label></div>
@@ -878,11 +1000,13 @@ function AdminPage({ path, data, context }: { path: string; data: BootstrapData;
   const opportunityAction = async (opportunityId: string, action: "pause" | "publish" | "reject") => {
     await context.performAction({ type: "moderate-opportunity", opportunityId, action, reason: reason || "Reviewed in the local demo admin workspace." });
   };
+  const reviewReport = (reportId: string, status: "reviewed" | "dismissed") =>
+    void context.performAction({ type: "review-report", reportId, status });
   return <div className="content-page admin-page"><PageHeading eyebrow="Trusted operations only" title="Administration." description="Review demo content and record moderation actions. This session was authenticated with a server-side admin key." action={<span className="secure-badge"><ShieldCheck size={14} /> Admin session</span>} /><nav className="admin-tabs" aria-label="Admin areas"><Link className={!isUsers && !isOpportunities ? "active" : ""} href="/admin">Overview</Link><Link className={isUsers ? "active" : ""} href="/admin/users">Users</Link><Link className={isOpportunities ? "active" : ""} href="/admin/opportunities">Opportunities</Link></nav>
     <label className="admin-reason">Moderation reason <input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={300} placeholder="Add a short reason for the audit record" /></label>
     {isUsers ? <section className="admin-section"><h2>Demo users <span className="count-chip">{users.length}</span></h2><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Profile</th><th>Role</th><th>Account state</th><th>Action</th></tr></thead><tbody>{users.map((user) => <tr key={user.id}><td><b>{user.name}</b><small>{user.email} · demo account</small></td><td>{roleNames[user.role]}</td><td><span className={`listing-status listing-${user.status}`}>{user.status}</span></td><td><button className="button button-light button-small" type="button" onClick={() => void userAction(user.id, user.status === "active" ? "disable" : "restore")}>{user.status === "active" ? "Disable" : "Restore"}</button></td></tr>)}</tbody></table></div></section>
       : isOpportunities ? <section className="admin-section"><h2>Opportunity moderation <span className="count-chip">{opportunities.length}</span></h2><div className="admin-list">{opportunities.map((opportunity) => <article className="publisher-list-row" key={opportunity.id}><span className="application-mark"><BriefcaseBusiness size={18} /></span><div className="publisher-list-copy"><b>{opportunity.title}</b><span>{opportunity.organization}</span><small>Publisher: {users.find((user) => user.id === opportunity.publisherId)?.name ?? "unknown"}</small></div><span className={`listing-status listing-${opportunity.status}`}>{opportunity.status}</span>{opportunity.status === "published" ? <button type="button" className="button button-light button-small" onClick={() => void opportunityAction(opportunity.id, "pause")}>Pause</button> : <button type="button" className="button button-soft button-small" onClick={() => void opportunityAction(opportunity.id, "publish")}>Publish</button>}<button type="button" className="text-button danger-text" onClick={() => void opportunityAction(opportunity.id, "reject")}>Reject</button></article>)}</div></section>
-        : <><div className="admin-metrics"><div><span>Profiles</span><strong>{users.length}</strong><small>fictional demo members</small></div><div><span>Listings</span><strong>{opportunities.length}</strong><small>sample and publisher-created</small></div><div><span>Applications</span><strong>{data.applications.length}</strong><small>linked demo records</small></div><div><span>Moderation actions</span><strong>{summary.moderationRecords.length}</strong><small>audited actions</small></div></div><div className="dashboard-grid"><section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">RECENT MODERATION</p><h2>Recorded actions</h2></div></div>{summary.moderationRecords.length ? summary.moderationRecords.slice(-5).reverse().map((record) => <div className="moderation-row" key={record.id}><b>{record.action} · {record.targetType}</b><span>{record.reason}</span><small>{new Date(record.createdAt).toLocaleString("en-IN")}</small></div>) : <p className="quiet-empty">No moderation actions yet. Each action will record its target, reason, actor, and timestamp.</p>}</section><section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">LOCAL CONTACT INBOX</p><h2>{summary.contactSubmissions.length} saved messages</h2></div><Link className="text-link" href="/contact">Contact form <ArrowRight size={14} /></Link></div>{summary.contactSubmissions.slice(-4).reverse().map((item) => <article className="contact-inbox-item" key={item.id}><b>{item.topic}</b><span>{item.name} · {item.email}</span><p>{item.message}</p><small>{new Date(item.createdAt).toLocaleString("en-IN")} · no email sent</small></article>)}</section></div><div className="admin-shortcuts"><Link className="button button-light" href="/admin/users">Review demo users <ArrowRight size={15} /></Link><Link className="button button-light" href="/admin/opportunities">Review listings <ArrowRight size={15} /></Link></div></>}
+        : <><div className="admin-metrics"><div><span>Profiles</span><strong>{users.length}</strong><small>fictional demo members</small></div><div><span>Listings</span><strong>{opportunities.length}</strong><small>sample and publisher-created</small></div><div><span>Applications</span><strong>{data.applications.length}</strong><small>linked demo records</small></div><div><span>Open reports</span><strong>{summary.reports.filter((report) => report.status === "open").length}</strong><small>trust and safety queue</small></div></div><div className="dashboard-grid"><section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">TRUST & SAFETY</p><h2>Open reports</h2></div></div>{summary.reports.filter((report) => report.status === "open").length ? summary.reports.filter((report) => report.status === "open").map((report) => <article className="contact-inbox-item" key={report.id}><b>{report.targetType} report · {report.reason}</b><p>{report.details || "No additional details were submitted."}</p><small>Reporter: {users.find((user) => user.id === report.reporterId)?.name ?? "demo profile"} · {new Date(report.createdAt).toLocaleString("en-IN")}</small><div className="session-card-actions"><button type="button" className="button button-dark button-small" onClick={() => reviewReport(report.id, "reviewed")}>Mark reviewed</button><button type="button" className="button button-light button-small" onClick={() => reviewReport(report.id, "dismissed")}>Dismiss</button></div></article>) : <p className="quiet-empty">No open reports. User-submitted reports are only visible to administrators.</p>}</section><section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">RECENT MODERATION</p><h2>Recorded actions</h2></div></div>{summary.moderationRecords.length ? summary.moderationRecords.slice(-5).reverse().map((record) => <div className="moderation-row" key={record.id}><b>{record.action} · {record.targetType}</b><span>{record.reason}</span><small>{new Date(record.createdAt).toLocaleString("en-IN")}</small></div>) : <p className="quiet-empty">No moderation actions yet. Each action will record its target, reason, actor, and timestamp.</p>}</section><section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">LOCAL CONTACT INBOX</p><h2>{summary.contactSubmissions.length} saved messages</h2></div><Link className="text-link" href="/contact">Contact form <ArrowRight size={14} /></Link></div>{summary.contactSubmissions.slice(-4).reverse().map((item) => <article className="contact-inbox-item" key={item.id}><b>{item.topic}</b><span>{item.name} · {item.email}</span><p>{item.message}</p><small>{new Date(item.createdAt).toLocaleString("en-IN")} · no email sent</small></article>)}</section></div><div className="admin-shortcuts"><Link className="button button-light" href="/admin/users">Review demo users <ArrowRight size={15} /></Link><Link className="button button-light" href="/admin/opportunities">Review listings <ArrowRight size={15} /></Link></div></>}
     <div className="audit-note"><ShieldCheck size={18} /><p>Every moderation action requires this verified admin session and a reason. Role selection in the public demo cannot elevate permissions.</p></div>
   </div>;
 }

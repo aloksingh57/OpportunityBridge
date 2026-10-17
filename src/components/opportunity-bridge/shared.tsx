@@ -18,6 +18,7 @@ import type { Opportunity, PublicUser } from "@/types/opportunity-bridge";
 
 export const publicNavigation = [
   { href: "/opportunities", label: "Opportunities" },
+  { href: "/startups", label: "Startups" },
   { href: "/people", label: "People" },
   { href: "/about", label: "About" },
   { href: "/how-it-works", label: "How it works" },
@@ -70,7 +71,7 @@ export function PublicNav({
                     onChange={(event) => onSwitchDemo(event.target.value)}
                     aria-label="Switch demo profile"
                   >
-                    {demoPeople.map((person) => <option key={person.id} value={person.id}>{person.name} · {person.role.replace("-", " ")}</option>)}
+                    {demoPeople.map((person) => <option key={person.id} value={person.id}>{person.name} · {person.roles.map((role) => role.replace("-", " ")).join(", ")}</option>)}
                   </select>
                 </label>
               ) : currentUser ? <Link className="nav-profile" href="/dashboard"><span className="avatar avatar-small">{currentUser.avatar}</span><span>{currentUser.name.split(" ")[0]}</span></Link> : null}
@@ -93,9 +94,10 @@ export function PublicNav({
           <Link href="/saved">Saved</Link>
           <Link href="/applications">Applications</Link>
           <Link href="/connections">Connections</Link>
+          <Link href="/sessions">Sessions</Link>
           <Link href="/messages">Messages</Link>
           <Link href="/recommendations">For you</Link>
-          {currentUser.role === "founder" || currentUser.role === "recruiter" ? <Link href="/manage-opportunities">Manage listings</Link> : null}
+          {currentUser.roles.some((role) => role === "founder" || role === "recruiter") ? <Link href="/manage-opportunities">Manage listings</Link> : null}
         </div>
       ) : null}
     </header>

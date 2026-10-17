@@ -13,9 +13,18 @@ export async function getBootstrap(cookieHeader?: string): Promise<BootstrapData
   const [actor, store] = await Promise.all([getActor(cookieHeader), readStore()]);
   const currentUserRecord = actor && !actor.isAdmin ? store.users.find((user) => user.id === actor.id) ?? null : null;
   const currentUser = currentUserRecord ? toPublicUser(currentUserRecord) : null;
+  const blockedUserIds = actor
+    ? new Set(store.userBlocks.flatMap((block) => {
+        if (block.blockerId === actor.id) return [block.blockedUserId];
+        if (block.blockedUserId === actor.id) return [block.blockerId];
+        return [];
+      }))
+    : new Set<string>();
   const today = new Date();
   const publicOpportunities = store.opportunities.filter((opportunity) =>
-    opportunity.status === "published" && new Date(opportunity.deadline) >= today,
+    opportunity.status === "published"
+    && new Date(opportunity.deadline) >= today
+    && !blockedUserIds.has(opportunity.publisherId),
   );
   const ownedOpportunities = currentUser
     ? store.opportunities.filter((opportunity) => opportunity.publisherId === currentUser.id && opportunity.status !== "rejected")
@@ -43,12 +52,14 @@ export async function getBootstrap(cookieHeader?: string): Promise<BootstrapData
   const connections = store.connections.flatMap((connection) => {
     if (connection.requesterId !== actor?.id && connection.recipientId !== actor?.id && !canSeeAll) return [];
     const otherId = connection.requesterId === actor?.id ? connection.recipientId : connection.requesterId;
+    if (blockedUserIds.has(otherId)) return [];
     const otherPerson = store.users.find((user) => user.id === otherId);
     return otherPerson ? [{ ...connection, otherPerson: toPublicUser(otherPerson) }] : [];
   });
   const conversations = store.conversations.flatMap((conversation) => {
     if (!actor || !conversation.participantIds.includes(actor.id)) return [];
     const otherId = conversation.participantIds.find((id) => id !== actor.id);
+    if (otherId && blockedUserIds.has(otherId)) return [];
     const otherPerson = otherId ? store.users.find((user) => user.id === otherId) : undefined;
     if (!otherPerson) return [];
     return [{
@@ -58,6 +69,22 @@ export async function getBootstrap(cookieHeader?: string): Promise<BootstrapData
         .filter((message) => message.conversationId === conversation.id)
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     }];
+  });
+  const mentoringSessions = store.mentoringSessions.flatMap((session) => {
+    if (session.requesterId !== actor?.id && session.providerId !== actor?.id && !canSeeAll) return [];
+    const otherId = session.requesterId === actor?.id ? session.providerId : session.requesterId;
+    if (blockedUserIds.has(otherId)) return [];
+    const otherPerson = store.users.find((user) => user.id === otherId && user.status === "active");
+    const canReviewDocuments = session.providerId === actor?.id && (session.status === "accepted" || session.status === "completed");
+    const documents = store.sessionDocuments.filter((document) =>
+      document.sessionId === session.id && (document.ownerId === actor?.id || canReviewDocuments),
+    );
+    return otherPerson ? [{ ...session, otherPerson: toPublicUser(otherPerson), documents }] : [];
+  });
+  const startups = store.startups.flatMap((startup) => {
+    const founder = store.users.find((user) => user.id === startup.founderId && user.status === "active");
+    if (!founder || blockedUserIds.has(founder.id)) return [];
+    return [{ ...startup, founder: toPublicUser(founder) }];
   });
   const applicantApplications = store.applications.filter((application) => application.applicantId === actor?.id);
   const publisherApplications = store.applications.filter((application) => {
@@ -80,16 +107,25 @@ export async function getBootstrap(cookieHeader?: string): Promise<BootstrapData
   return {
     currentUser,
     isAdmin: Boolean(actor?.isAdmin),
-    people: store.users.filter((user) => user.status === "active").map(toPublicUser),
+    people: store.users.filter((user) => user.status === "active" && !blockedUserIds.has(user.id)).map(toPublicUser),
     opportunities: canSeeAll
       ? store.opportunities
       : [...publicOpportunities, ...ownedOpportunities.filter((owned) => !publicOpportunities.some((item) => item.id === owned.id))],
     applications,
     connections,
     conversations,
+    mentoringSessions,
+    startups,
     notifications: userNotifications,
     savedOpportunityIds: userOpportunities.map((saved) => saved.opportunityId),
     savedProfileIds: userSavedProfiles.map((saved) => saved.savedProfileId),
+    blockedProfileIds: store.userBlocks.filter((block) => block.blockerId === actor?.id).map((block) => block.blockedUserId),
+    blockedProfiles: store.userBlocks
+      .filter((block) => block.blockerId === actor?.id)
+      .flatMap((block) => {
+        const user = store.users.find((item) => item.id === block.blockedUserId);
+        return user ? [toPublicUser(user)] : [];
+      }),
     metrics: {
       applications: applicantApplications.length,
       savedOpportunities: userOpportunities.length,
@@ -105,6 +141,7 @@ export async function getBootstrap(cookieHeader?: string): Promise<BootstrapData
         opportunities: store.opportunities,
         moderationRecords: store.moderationRecords,
         contactSubmissions: store.contactSubmissions,
+        reports: store.reports,
       },
     } : {}),
   };

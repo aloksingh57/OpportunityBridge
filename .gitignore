@@ -17,6 +17,7 @@
 # next.js
 /.next/
 /.next-opportunitybridge/
+/.next-opportunitybridge-build/
 /out/
 
 # production

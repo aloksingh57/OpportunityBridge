@@ -24,3 +24,15 @@ test("every demo message belongs to a conversation participant", () => {
     assert.ok(conversation.participantIds.includes(message.senderId));
   }
 });
+
+test("demo identities support multiple roles and every startup points to a founder", () => {
+  assert.ok(seedStore.users.some((user) => user.roles.length > 1));
+  const usersById = new Map(seedStore.users.map((user) => [user.id, user]));
+  assert.ok(seedStore.startups.length >= 3);
+  for (const startup of seedStore.startups) {
+    const founder = usersById.get(startup.founderId);
+    assert.ok(founder);
+    assert.ok(founder.roles.includes("founder"));
+    assert.equal(startup.isDemo, true);
+  }
+});

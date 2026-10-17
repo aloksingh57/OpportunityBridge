@@ -1,5 +1,6 @@
 import { ActionError, runAction } from "@/lib/actions";
 import { requireActor } from "@/lib/auth";
+import { consumeRateLimit } from "@/lib/rate-limit";
 import { ActionSchema } from "@/lib/validation";
 
 export async function POST(request: Request) {
@@ -15,6 +16,13 @@ export async function POST(request: Request) {
   }
   try {
     const actor = await requireActor();
+    const limit = consumeRateLimit(`actions:${actor.id}`, 120, 60_000);
+    if (!limit.allowed) {
+      return Response.json(
+        { error: "Too many actions. Please wait before trying again." },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
+      );
+    }
     const result = await runAction(actor, parsed.data);
     return Response.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

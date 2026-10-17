@@ -15,7 +15,7 @@ const now = Date.now();
 const isoDaysFromNow = (days: number) => new Date(now + days * 86_400_000).toISOString();
 const pastDays = (days: number) => new Date(now - days * 86_400_000).toISOString();
 
-const personas: Array<Omit<UserProfile, "isDemo" | "status">> = [
+const personas: Array<Omit<UserProfile, "isDemo" | "status" | "roles">> = [
   { id: "student-aarav", name: "Aarav Sharma", email: "aarav@example.demo", role: "student", headline: "Computer science student · building useful things", bio: "Final-year student who enjoys turning thoughtful ideas into accessible products.", location: "Bengaluru, India", avatar: "AS", skills: ["React", "TypeScript", "Figma"], interests: ["engineering", "design", "climate"], experienceLevel: "student", remotePreference: "any" },
   { id: "student-priya", name: "Priya Mehta", email: "priya@example.demo", role: "student", headline: "Design student · curious about people and products", bio: "I make clear, inclusive experiences and want to learn from a collaborative team.", location: "Pune, India", avatar: "PM", skills: ["Figma", "UI design", "Research"], interests: ["design", "product"], experienceLevel: "student", remotePreference: "remote" },
   { id: "student-nikhil", name: "Nikhil Das", email: "nikhil@example.demo", role: "student", headline: "Data science student · open-source contributor", bio: "Exploring applied machine learning and responsible data products.", location: "Kolkata, India", avatar: "ND", skills: ["Python", "SQL", "Data analysis"], interests: ["data", "engineering"], experienceLevel: "student", remotePreference: "any" },
@@ -154,7 +154,12 @@ const notifications: NotificationRecord[] = [
 
 export const seedStore: OpportunityBridgeStore = {
   version: 1,
-  users: personas.map((person) => ({ ...person, isDemo: true, status: "active" })),
+  users: personas.map((person) => ({
+    ...person,
+    roles: person.id === "founder-kabir" ? ["founder", "mentor"] : person.id === "advisor-vikram" ? ["advisor", "mentor"] : [person.role],
+    isDemo: true,
+    status: "active",
+  })),
   opportunities,
   applications,
   connections,
@@ -173,6 +178,15 @@ export const seedStore: OpportunityBridgeStore = {
   ],
   moderationRecords: [],
   contactSubmissions: [],
+  mentoringSessions: [],
+  userBlocks: [],
+  reports: [],
+  sessionDocuments: [],
+  startups: [
+    { id: "startup-greencart", founderId: "founder-kabir", name: "GreenCart", industry: "Climate & commerce", stage: "pre-seed", summary: "A fictional surplus marketplace helping neighborhood shops move good stock before it goes to waste.", fundingAskInr: 4500000, isDemo: true },
+    { id: "startup-skillspring", founderId: "founder-isha", name: "SkillSpring", industry: "Education & future of work", stage: "seed", summary: "A fictional learning platform pairing practical project work with accessible career guidance.", fundingAskInr: 8000000, isDemo: true },
+    { id: "startup-circulab", founderId: "founder-aman", name: "CircuLab", industry: "Climate & small business", stage: "idea", summary: "A fictional early concept exploring more resilient supply chains for independent businesses.", fundingAskInr: null, isDemo: true },
+  ],
 };
 
 export const demoPersonas: Array<{ id: string; label: string; role: Role }> = personas.map(({ id, name, role }) => ({

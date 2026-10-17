@@ -39,6 +39,7 @@ export interface UserProfile {
   name: string;
   email: string;
   role: Role;
+  roles: Role[];
   headline: string;
   bio: string;
   location: string;
@@ -136,9 +137,9 @@ export interface SavedProfile {
 export interface ModerationRecord {
   id: string;
   moderatorId: string;
-  targetType: "user" | "opportunity";
+  targetType: "user" | "opportunity" | "report";
   targetId: string;
-  action: "disable" | "restore" | "pause" | "publish" | "reject";
+  action: "disable" | "restore" | "pause" | "publish" | "reject" | "review" | "dismiss";
   reason: string;
   createdAt: string;
 }
@@ -150,6 +151,57 @@ export interface ContactSubmission {
   topic: string;
   message: string;
   createdAt: string;
+}
+
+export interface MentoringSession {
+  id: string;
+  requesterId: string;
+  providerId: string;
+  serviceType: "mentorship" | "cv-review" | "pitch-review" | "strategy";
+  requestNote: string;
+  scheduledFor: string | null;
+  status: "requested" | "accepted" | "declined" | "cancelled" | "completed";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SessionDocument {
+  id: string;
+  sessionId: string;
+  ownerId: string;
+  fileName: string;
+  mimeType: "application/pdf";
+  size: number;
+  createdAt: string;
+}
+
+export interface UserBlock {
+  id: string;
+  blockerId: string;
+  blockedUserId: string;
+  createdAt: string;
+}
+
+export interface ContentReport {
+  id: string;
+  reporterId: string;
+  targetType: "user" | "opportunity";
+  targetId: string;
+  reason: string;
+  details: string;
+  status: "open" | "reviewed" | "dismissed";
+  createdAt: string;
+}
+
+export interface StartupProfile {
+  id: string;
+  founderId: string;
+  name: string;
+  industry: string;
+  stage: "idea" | "pre-seed" | "seed" | "series-a";
+  summary: string;
+  fundingAskInr: number | null;
+  isDemo: true;
 }
 
 export interface OpportunityBridgeStore {
@@ -165,6 +217,11 @@ export interface OpportunityBridgeStore {
   savedProfiles: SavedProfile[];
   moderationRecords: ModerationRecord[];
   contactSubmissions: ContactSubmission[];
+  mentoringSessions: MentoringSession[];
+  userBlocks: UserBlock[];
+  reports: ContentReport[];
+  startups: StartupProfile[];
+  sessionDocuments: SessionDocument[];
 }
 
 export type PublicUser = Omit<UserProfile, "email" | "status">;
@@ -179,9 +236,13 @@ export interface BootstrapData {
   >;
   connections: Array<Connection & { otherPerson: PublicUser }>;
   conversations: Array<Conversation & { otherPerson: PublicUser; messages: Message[] }>;
+  mentoringSessions: Array<MentoringSession & { otherPerson: PublicUser; documents: SessionDocument[] }>;
   notifications: NotificationRecord[];
   savedOpportunityIds: string[];
   savedProfileIds: string[];
+  blockedProfileIds: string[];
+  blockedProfiles: PublicUser[];
+  startups: Array<StartupProfile & { founder: PublicUser }>;
   metrics: {
     applications: number;
     savedOpportunities: number;
@@ -196,5 +257,6 @@ export interface BootstrapData {
     opportunities: Opportunity[];
     moderationRecords: ModerationRecord[];
     contactSubmissions: ContactSubmission[];
+    reports: ContentReport[];
   };
 }

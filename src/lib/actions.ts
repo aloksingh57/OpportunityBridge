@@ -7,6 +7,7 @@ import type {
   NotificationRecord,
   Opportunity,
   OpportunityBridgeStore,
+  Role,
   UserProfile,
 } from "@/types/opportunity-bridge";
 
@@ -45,6 +46,9 @@ function getVisibleOpportunity(
 ): Opportunity {
   const opportunity = store.opportunities.find((item) => item.id === opportunityId);
   if (!opportunity) throw new ActionError("That opportunity could not be found.", 404);
+  if (isBlocked(store, actor.id, opportunity.publisherId)) {
+    throw new ActionError("This opportunity is unavailable.", 404);
+  }
   const isPublic = opportunity.status === "published" && new Date(opportunity.deadline) >= new Date();
   if (!isPublic && opportunity.publisherId !== actor.id && !actor.isAdmin) {
     throw new ActionError("This opportunity is not available.", 404);
@@ -61,8 +65,15 @@ function requireUser(
   return user;
 }
 
+function isBlocked(store: OpportunityBridgeStore, firstUserId: string, secondUserId: string): boolean {
+  return store.userBlocks.some((block) =>
+    (block.blockerId === firstUserId && block.blockedUserId === secondUserId)
+    || (block.blockerId === secondUserId && block.blockedUserId === firstUserId),
+  );
+}
+
 export async function runAction(
-  actor: { id: string; role: ActorRole; isAdmin: boolean },
+  actor: { id: string; role: ActorRole; roles?: Role[]; isAdmin: boolean },
   action: OpportunityAction,
 ): Promise<{ message: string }> {
   return updateStore((store) => {
@@ -87,7 +98,7 @@ export async function runAction(
         return { message: action.saved ? "Profile saved." : "Profile removed from your saved profiles." };
       }
       case "apply": {
-        if (!currentUser || (currentUser.role !== "student" && currentUser.role !== "job-seeker")) {
+        if (!currentUser || !currentUser.roles.some((role) => role === "student" || role === "job-seeker")) {
           throw new ActionError("Applications are available to student and job-seeker demo profiles.", 403);
         }
         const opportunity = getVisibleOpportunity(store, action.opportunityId, actor);
@@ -149,6 +160,7 @@ export async function runAction(
         const recipient = store.users.find((item) => item.id === action.recipientId && item.status === "active");
         if (!currentUser) throw new ActionError("Sign in with a demo profile to connect.", 401);
         if (!recipient) throw new ActionError("That profile could not be found.", 404);
+        if (isBlocked(store, actor.id, recipient.id)) throw new ActionError("This connection is unavailable.", 403);
         if (recipient.id === actor.id) throw new ActionError("You cannot send a connection request to yourself.", 400);
         const existing = store.connections.find((connection) =>
           [connection.requesterId, connection.recipientId].includes(actor.id)
@@ -179,6 +191,9 @@ export async function runAction(
       case "connection-update": {
         const connection = store.connections.find((item) => item.id === action.connectionId);
         if (!connection) throw new ActionError("That connection could not be found.", 404);
+        if (isBlocked(store, connection.requesterId, connection.recipientId)) {
+          throw new ActionError("This connection is unavailable.", 403);
+        }
         if (action.action === "remove") {
           if (connection.status !== "accepted" || ![connection.requesterId, connection.recipientId].includes(actor.id)) {
             throw new ActionError("You cannot remove this connection.", 403);
@@ -204,6 +219,8 @@ export async function runAction(
         if (!conversation || !conversation.participantIds.includes(actor.id)) {
           throw new ActionError("This conversation is not available to your profile.", 403);
         }
+        const recipientId = conversation.participantIds.find((id) => id !== actor.id);
+        if (recipientId && isBlocked(store, actor.id, recipientId)) throw new ActionError("This conversation is unavailable.", 403);
         store.messages.push({
           id: newId("message"),
           conversationId: conversation.id,
@@ -213,7 +230,6 @@ export async function runAction(
           readAt: null,
         });
         conversation.updatedAt = now;
-        const recipientId = conversation.participantIds.find((id) => id !== actor.id);
         if (recipientId) addNotification(store, recipientId, "message", "New message", "Open your inbox to read the new message.", "/messages");
         return { message: "Message sent." };
       }
@@ -222,6 +238,10 @@ export async function runAction(
           item.id === action.conversationId && item.participantIds.includes(actor.id),
         );
         if (!conversation) throw new ActionError("This conversation is not available to your profile.", 403);
+        const otherParticipantId = conversation.participantIds.find((id) => id !== actor.id);
+        if (otherParticipantId && isBlocked(store, actor.id, otherParticipantId)) {
+          throw new ActionError("This conversation is unavailable.", 403);
+        }
         for (const message of store.messages) {
           if (message.conversationId === conversation.id && message.senderId !== actor.id && !message.readAt) {
             message.readAt = now;
@@ -233,6 +253,7 @@ export async function runAction(
         const recipient = store.users.find((item) => item.id === action.recipientId && item.status === "active");
         if (!currentUser) throw new ActionError("Sign in with a demo profile to message people.", 401);
         if (!recipient || recipient.id === actor.id) throw new ActionError("Choose another active profile to message.", 400);
+        if (isBlocked(store, actor.id, recipient.id)) throw new ActionError("This conversation is unavailable.", 403);
         const connected = store.connections.some((connection) =>
           connection.status === "accepted"
           && [connection.requesterId, connection.recipientId].includes(actor.id)
@@ -267,7 +288,130 @@ export async function runAction(
         currentUser.skills = [...new Set(action.skills)];
         currentUser.interests = [...new Set(action.interests)];
         currentUser.remotePreference = action.remotePreference;
+        currentUser.roles = [...new Set(action.roles)];
+        currentUser.role = action.roles.includes(currentUser.role) ? currentUser.role : action.roles[0]!;
         return { message: "Your profile changes were saved." };
+      }
+      case "session-request": {
+        if (!currentUser) throw new ActionError("Sign in with a demo profile to request a session.", 401);
+        const provider = store.users.find((user) => user.id === action.providerId && user.status === "active");
+        if (!provider || (!provider.roles.includes("mentor") && !provider.roles.includes("advisor"))) {
+          throw new ActionError("Choose an active mentor or advisor profile.", 404);
+        }
+        const requiredRole = action.serviceType === "mentorship" || action.serviceType === "cv-review" ? "mentor" : "advisor";
+        if (!provider.roles.includes(requiredRole)) {
+          throw new ActionError(`This provider does not offer ${action.serviceType.replace("-", " ")} sessions.`, 400);
+        }
+        if (provider.id === currentUser.id) throw new ActionError("You cannot request a session with yourself.", 400);
+        if (isBlocked(store, currentUser.id, provider.id)) throw new ActionError("This session is unavailable.", 403);
+        if (action.scheduledFor) {
+          const scheduledTime = new Date(action.scheduledFor).getTime();
+          if (scheduledTime <= Date.now() || scheduledTime > Date.now() + 120 * 86_400_000) {
+            throw new ActionError("Choose a proposed time within the next 120 days.", 400);
+          }
+        }
+        if (store.mentoringSessions.some((session) =>
+          session.requesterId === currentUser.id
+          && session.providerId === provider.id
+          && session.status === "requested",
+        )) {
+          throw new ActionError("You already have a pending session request with this person.", 409);
+        }
+        const session = {
+          id: newId("session"),
+          requesterId: currentUser.id,
+          providerId: provider.id,
+          serviceType: action.serviceType,
+          requestNote: action.requestNote,
+          scheduledFor: action.scheduledFor,
+          status: "requested" as const,
+          createdAt: now,
+          updatedAt: now,
+        };
+        store.mentoringSessions.unshift(session);
+        addNotification(store, provider.id, "system", "A session request arrived", `${currentUser.name} requested a ${action.serviceType.replace("-", " ")} session.`, "/sessions");
+        return { message: "Your session request was sent. The provider can accept or decline it." };
+      }
+      case "session-update": {
+        const session = store.mentoringSessions.find((item) => item.id === action.sessionId);
+        if (!session) throw new ActionError("That session request could not be found.", 404);
+        const isProvider = session.providerId === actor.id;
+        const isRequester = session.requesterId === actor.id;
+        if (isBlocked(store, session.requesterId, session.providerId)) {
+          throw new ActionError("This session is unavailable.", 403);
+        }
+        if (action.action === "accept" || action.action === "decline") {
+          if (!isProvider) throw new ActionError("Only the mentor or advisor can respond to this request.", 403);
+          if (session.status !== "requested") throw new ActionError("This session request has already been answered.", 409);
+          session.status = action.action === "accept" ? "accepted" : "declined";
+        } else if (action.action === "cancel") {
+          if (!isRequester) throw new ActionError("Only the requester can cancel this session.", 403);
+          if (session.status !== "requested" && session.status !== "accepted") throw new ActionError("This session can no longer be cancelled.", 409);
+          session.status = "cancelled";
+        } else {
+          if (!isProvider) throw new ActionError("Only the mentor or advisor can complete this session.", 403);
+          if (session.status !== "accepted") throw new ActionError("Only an accepted session can be completed.", 409);
+          if (session.scheduledFor && new Date(session.scheduledFor).getTime() > Date.now()) {
+            throw new ActionError("A session cannot be completed before its proposed time.", 409);
+          }
+          session.status = "completed";
+        }
+        session.updatedAt = now;
+        const notifyUserId = isProvider ? session.requesterId : session.providerId;
+        addNotification(store, notifyUserId, "system", `Session ${session.status}`, "Your mentoring or advisory session was updated.", "/sessions");
+        return { message: `Session ${session.status}.` };
+      }
+      case "report-content": {
+        if (!currentUser) throw new ActionError("Sign in with a demo profile to submit a report.", 401);
+        const exists = action.targetType === "user"
+          ? store.users.some((user) => user.id === action.targetId && user.status === "active")
+          : store.opportunities.some((item) => item.id === action.targetId);
+        if (!exists) throw new ActionError("That content could not be found.", 404);
+        if (action.targetType === "user" && action.targetId === currentUser.id) throw new ActionError("You cannot report your own profile.", 400);
+        if (store.reports.some((report) => report.reporterId === actor.id && report.targetType === action.targetType && report.targetId === action.targetId && report.status === "open")) {
+          throw new ActionError("You already have an open report for this content.", 409);
+        }
+        store.reports.unshift({
+          id: newId("report"),
+          reporterId: actor.id,
+          targetType: action.targetType,
+          targetId: action.targetId,
+          reason: action.reason,
+          details: action.details,
+          status: "open",
+          createdAt: now,
+        });
+        return { message: "Your report was recorded for administrator review." };
+      }
+      case "block-user": {
+        if (!currentUser) throw new ActionError("Sign in with a demo profile to manage blocked profiles.", 401);
+        if (action.userId === currentUser.id) throw new ActionError("You cannot block your own profile.", 400);
+        const target = store.users.find((user) => user.id === action.userId && user.status === "active");
+        if (!target) throw new ActionError("That profile could not be found.", 404);
+        const existing = store.userBlocks.find((block) => block.blockerId === actor.id && block.blockedUserId === target.id);
+        if (action.blocked && !existing) {
+          store.userBlocks.push({ id: newId("block"), blockerId: actor.id, blockedUserId: target.id, createdAt: now });
+        } else if (!action.blocked && existing) {
+          store.userBlocks = store.userBlocks.filter((block) => block.id !== existing.id);
+        }
+        return { message: action.blocked ? `${target.name} was blocked.` : `${target.name} was unblocked.` };
+      }
+      case "review-report": {
+        if (!actor.isAdmin) throw new ActionError("Administrator access is required.", 403);
+        const report = store.reports.find((item) => item.id === action.reportId);
+        if (!report) throw new ActionError("That report could not be found.", 404);
+        if (report.status !== "open") throw new ActionError("This report has already been reviewed.", 409);
+        report.status = action.status;
+        store.moderationRecords.push({
+          id: newId("moderation"),
+          moderatorId: actor.id,
+          targetType: "report",
+          targetId: report.id,
+          action: action.status === "reviewed" ? "review" : "dismiss",
+          reason: `Report ${action.status}.`,
+          createdAt: now,
+        });
+        return { message: `Report ${action.status}.` };
       }
       case "moderate-opportunity": {
         if (!actor.isAdmin) throw new ActionError("Administrator access is required.", 403);

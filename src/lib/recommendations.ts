@@ -13,12 +13,13 @@ export function recommendOpportunities(
   opportunities: Opportunity[],
   today = new Date(),
 ): OpportunityRecommendation[] {
+  const userRoles = user.roles;
   return opportunities
     .filter((opportunity) => {
       if (opportunity.status !== "published" || new Date(opportunity.deadline) < today) return false;
-      if (opportunity.type === "startup-funding" && user.role !== "founder" && user.role !== "investor") return false;
-      if (opportunity.type === "mentorship" && user.role === "mentor") return false;
-      if (opportunity.type === "advisory" && user.role === "advisor") return false;
+      if (opportunity.type === "startup-funding" && !userRoles.some((role) => role === "founder" || role === "investor")) return false;
+      if (opportunity.type === "mentorship" && userRoles.includes("mentor")) return false;
+      if (opportunity.type === "advisory" && userRoles.includes("advisor")) return false;
       return true;
     })
     .map((opportunity) => {
@@ -31,14 +32,14 @@ export function recommendOpportunities(
       );
       const interestFit = user.interests.length === 0 ? 0.5 : normalize(matchingInterests.length / Math.min(user.interests.length, 2));
       const roleFit = opportunity.type === "internship" || opportunity.type === "student-project" || opportunity.type === "scholarship"
-        ? Number(user.role === "student")
+        ? Number(userRoles.includes("student"))
         : opportunity.type === "startup-funding"
-          ? Number(user.role === "founder" || user.role === "investor")
+          ? Number(userRoles.includes("founder") || userRoles.includes("investor"))
           : opportunity.type === "mentorship"
-            ? Number(user.role !== "mentor")
+            ? Number(!userRoles.includes("mentor"))
             : opportunity.type === "advisory"
-              ? Number(user.role !== "advisor")
-              : Number(user.role === "job-seeker" || user.role === "recruiter" || user.role === "student");
+              ? Number(!userRoles.includes("advisor"))
+              : Number(userRoles.includes("job-seeker") || userRoles.includes("recruiter") || userRoles.includes("student"));
       const city = user.location.split(",")[0]!.toLowerCase();
       const locationFit = user.remotePreference === "remote"
         ? Number(opportunity.remote)

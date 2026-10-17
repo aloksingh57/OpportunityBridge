@@ -23,6 +23,7 @@ const userProfileSchema = z.object({
   name: z.string(),
   email: z.string(),
   role: z.enum(roles),
+  roles: z.array(z.enum(roles)).min(1).optional(),
   headline: z.string(),
   bio: z.string(),
   location: z.string(),
@@ -33,7 +34,7 @@ const userProfileSchema = z.object({
   remotePreference: z.enum(["any", "remote", "onsite"]),
   isDemo: z.literal(true),
   status: z.enum(["active", "disabled"]),
-});
+}).transform((user) => ({ ...user, roles: user.roles ?? [user.role] }));
 const opportunitySchema = z.object({
   id: z.string(),
   publisherId: z.string(),
@@ -108,9 +109,9 @@ export const OpportunityBridgeStoreSchema = z.object({
   moderationRecords: z.array(z.object({
     id: z.string(),
     moderatorId: z.string(),
-    targetType: z.enum(["user", "opportunity"]),
+    targetType: z.enum(["user", "opportunity", "report"]),
     targetId: z.string(),
-    action: z.enum(["disable", "restore", "pause", "publish", "reject"]),
+    action: z.enum(["disable", "restore", "pause", "publish", "reject", "review", "dismiss"]),
     reason: z.string(),
     createdAt: timestampSchema,
   })),
@@ -122,6 +123,52 @@ export const OpportunityBridgeStoreSchema = z.object({
     message: z.string(),
     createdAt: timestampSchema,
   })),
+  mentoringSessions: z.array(z.object({
+    id: z.string(),
+    requesterId: z.string(),
+    providerId: z.string(),
+    serviceType: z.enum(["mentorship", "cv-review", "pitch-review", "strategy"]),
+    requestNote: z.string(),
+    scheduledFor: timestampSchema.nullable(),
+    status: z.enum(["requested", "accepted", "declined", "cancelled", "completed"]),
+    createdAt: timestampSchema,
+    updatedAt: timestampSchema,
+  })).default([]),
+  userBlocks: z.array(z.object({
+    id: z.string(),
+    blockerId: z.string(),
+    blockedUserId: z.string(),
+    createdAt: timestampSchema,
+  })).default([]),
+  reports: z.array(z.object({
+    id: z.string(),
+    reporterId: z.string(),
+    targetType: z.enum(["user", "opportunity"]),
+    targetId: z.string(),
+    reason: z.string().min(1).max(80),
+    details: z.string().max(500),
+    status: z.enum(["open", "reviewed", "dismissed"]),
+    createdAt: timestampSchema,
+  })).default([]),
+  startups: z.array(z.object({
+    id: z.string(),
+    founderId: z.string(),
+    name: z.string(),
+    industry: z.string(),
+    stage: z.enum(["idea", "pre-seed", "seed", "series-a"]),
+    summary: z.string(),
+    fundingAskInr: z.number().nonnegative().nullable(),
+    isDemo: z.literal(true),
+  })).default([]),
+  sessionDocuments: z.array(z.object({
+    id: z.string(),
+    sessionId: z.string(),
+    ownerId: z.string(),
+    fileName: z.string().min(1).max(120),
+    mimeType: z.literal("application/pdf"),
+    size: z.number().int().positive().max(5 * 1024 * 1024),
+    createdAt: timestampSchema,
+  })).default([]),
 });
 
 export const SessionSchema = z.object({
@@ -132,6 +179,7 @@ export const RegisterSchema = z.object({
   name: z.string().trim().min(2).max(80),
   email: z.string().trim().email().max(150),
   role: z.enum(roles),
+  roles: z.array(z.enum(roles)).min(1).max(roles.length).optional(),
   location: z.string().trim().min(2).max(100),
   skills: z.array(z.string().trim().min(1).max(40)).max(12),
 });
@@ -165,7 +213,12 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("mark-conversation-read"), conversationId: boundedString(80) }),
   z.object({ type: z.literal("start-conversation"), recipientId: boundedString(80), body: z.string().trim().max(2000).default("") }),
   z.object({ type: z.literal("mark-notification-read"), notificationId: boundedString(80) }),
-  z.object({ type: z.literal("update-profile"), headline: z.string().trim().max(140), bio: z.string().trim().max(500), location: z.string().trim().max(100), skills: z.array(z.string().trim().min(1).max(40)).max(12), interests: z.array(z.string().trim().min(1).max(40)).max(12), remotePreference: z.enum(["any", "remote", "onsite"]) }),
+  z.object({ type: z.literal("update-profile"), headline: z.string().trim().max(140), bio: z.string().trim().max(500), location: z.string().trim().max(100), skills: z.array(z.string().trim().min(1).max(40)).max(12), interests: z.array(z.string().trim().min(1).max(40)).max(12), remotePreference: z.enum(["any", "remote", "onsite"]), roles: z.array(z.enum(roles)).min(1).max(roles.length) }),
+  z.object({ type: z.literal("session-request"), providerId: boundedString(80), serviceType: z.enum(["mentorship", "cv-review", "pitch-review", "strategy"]), requestNote: z.string().trim().max(500), scheduledFor: timestampSchema.nullable() }),
+  z.object({ type: z.literal("session-update"), sessionId: boundedString(80), action: z.enum(["accept", "decline", "cancel", "complete"]) }),
+  z.object({ type: z.literal("report-content"), targetType: z.enum(["user", "opportunity"]), targetId: boundedString(80), reason: boundedString(80), details: z.string().trim().max(500) }),
+  z.object({ type: z.literal("block-user"), userId: boundedString(80), blocked: z.boolean() }),
+  z.object({ type: z.literal("review-report"), reportId: boundedString(80), status: z.enum(["reviewed", "dismissed"]) }),
   z.object({ type: z.literal("moderate-opportunity"), opportunityId: boundedString(80), action: z.enum(["pause", "publish", "reject"]), reason: boundedString(300) }),
   z.object({ type: z.literal("moderate-user"), userId: boundedString(80), action: z.enum(["disable", "restore"]), reason: boundedString(300) }),
 ]);

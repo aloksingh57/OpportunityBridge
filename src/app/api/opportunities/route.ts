@@ -4,10 +4,10 @@ import { CreateOpportunitySchema } from "@/lib/validation";
 import type { Opportunity, OpportunityType, UserProfile } from "@/types/opportunity-bridge";
 
 function roleCanPublish(user: UserProfile, type: OpportunityType): boolean {
-  return user.role === "founder"
-    || user.role === "recruiter"
-    || (user.role === "mentor" && type === "mentorship")
-    || (user.role === "advisor" && type === "advisory");
+  return user.roles.includes("founder")
+    || user.roles.includes("recruiter")
+    || (user.roles.includes("mentor") && type === "mentorship")
+    || (user.roles.includes("advisor") && type === "advisory");
 }
 
 export async function POST(request: Request) {
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
         organization: `${publisher.name}'s demo team (fictional)`,
         responsibilities: ["Collaborate with the publisher and a small, supportive team.", "Share progress and complete the agreed project."],
         eligibility: ["Relevant experience or learning interest.", "Demo opportunity — confirm terms directly before making real commitments."],
-        experienceLevel: publisher.role === "founder" || publisher.role === "recruiter" ? "entry" : "mid",
+        experienceLevel: publisher.roles.some((role) => role === "founder" || role === "recruiter") ? "entry" : "mid",
         status: "published",
         createdAt: new Date().toISOString(),
         isDemo: true,
