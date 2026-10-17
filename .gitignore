@@ -12,9 +12,11 @@
 
 # testing
 /coverage
+/.data
 
 # next.js
 /.next/
+/.next-opportunitybridge/
 /out/
 
 # production
