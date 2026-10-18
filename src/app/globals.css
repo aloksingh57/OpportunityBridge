@@ -170,6 +170,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .hero-copy h1 { max-width: 590px; margin: 24px 0 17px; font-size: clamp(49px, 5.3vw, 76px); line-height: .99; font-weight: 650; letter-spacing: -.075em; }
 .hero-copy h1 span { color: #8675b8; }
 .hero-copy > p { max-width: 455px; margin: 0; color: #6e6c78; font-size: 16px; line-height: 1.8; }
+.hero-search-form { display: flex; align-items: center; gap: 7px; max-width: 570px; margin-top: 24px; padding: 6px; border: 1px solid #e6e2e8; border-radius: 15px; background: #fff; box-shadow: 0 12px 32px rgb(37 32 60 / 7%); }
+.hero-search-input { display: flex; flex: 1; align-items: center; gap: 9px; min-width: 140px; padding: 0 10px; color: #827d8e; }
+.hero-search-input input { width: 100%; min-width: 0; min-height: 42px; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 11px; }
+.hero-search-type { flex: none; }
+.hero-search-type select { max-width: 135px; min-height: 39px; padding: 0 9px; border: 1px solid #eeecf0; border-radius: 9px; color: #635f6e; background: #fff; font-size: 10px; }
+.hero-search-form > .button { min-height: 40px; padding: 0 12px; }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 11px; margin-top: 28px; }
 .hero-note { display: flex; align-items: center; gap: 12px; max-width: 405px; margin-top: 31px; color: #797784; font-size: 10px; line-height: 1.5; }
 .hero-note strong { color: #555260; font-weight: 650; }
@@ -328,6 +334,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .count-chip { display: inline-flex; align-items: center; justify-content: center; padding: 7px 10px; border: 1px solid #ebe9ed; border-radius: 9px; color: #706c7a; background: #fff; font-size: 9px; font-weight: 650; }
 .eyebrow { text-transform: uppercase; }
 .marketplace-toolbar { display: flex; align-items: center; gap: 10px; margin: 22px 0 17px; }
+.marketplace-search-form { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 260px; }
+.marketplace-search-form > .search-control { flex: 1; }
+.marketplace-search-button { min-height: 44px; padding: 0 14px; }
 .search-control { min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px; border: 1px solid var(--line); border-radius: 13px; color: #85818e; background: #fff; }
 .search-control:focus-within { border-color: #b9acd3; box-shadow: 0 0 0 3px rgb(137 122 192 / 9%); }
 .search-control input { width: 100%; min-width: 0; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 11px; }
@@ -890,6 +899,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .hero-section { padding: 48px 22px 28px; }
   .hero-copy h1 { margin-top: 19px; font-size: clamp(47px, 12.4vw, 68px); }
   .hero-copy > p { font-size: 13px; }
+  .hero-search-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin-top: 19px; padding: 7px; }
+  .hero-search-input { grid-column: 1 / -1; min-width: 0; }
+  .hero-search-type select { width: 100%; max-width: none; min-height: 40px; }
+  .hero-search-form > .button { min-height: 40px; padding: 0 11px; font-size: 10px; }
   .hero-actions { gap: 8px; margin-top: 21px; }
   .hero-actions .button { min-height: 42px; padding: 0 12px; font-size: 10px; }
   .hero-note { margin-top: 22px; font-size: 8px; }
@@ -947,7 +960,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .page-heading h1 { font-size: 33px; }
   .page-description { font-size: 10px; }
   .marketplace-toolbar { flex-wrap: wrap; gap: 7px; }
-  .marketplace-toolbar > .search-control { flex-basis: 100%; min-height: 44px; }
+  .marketplace-search-form { flex-basis: 100%; min-width: 0; }
+  .marketplace-search-form .search-control { min-height: 44px; }
+  .marketplace-search-button { min-height: 42px; padding: 0 10px; font-size: 9px; }
   .select-control { flex: 1; }
   .select-control select { max-width: none; flex: 1; }
   .marketplace-layout { display: block; }

@@ -10,20 +10,24 @@ import { SupabaseAuthPage } from "@/components/opportunity-bridge/supabase-auth-
 
 export default function Page({
   params,
+  searchParams,
 }: {
   params: Promise<{ segments?: string[] }>;
+  searchParams: Promise<{ q?: string | string[]; type?: string | string[] }>;
 }) {
   return (
     <Suspense fallback={<main className="loading-page" role="status"><span className="loading-orbit" /><p>Getting OpportunityBridge ready…</p></main>}>
-      <RouteContent params={params} />
+      <RouteContent params={params} searchParams={searchParams} />
     </Suspense>
   );
 }
 
 async function RouteContent({
   params,
+  searchParams,
 }: {
   params: Promise<{ segments?: string[] }>;
+  searchParams: Promise<{ q?: string | string[]; type?: string | string[] }>;
 }) {
   const { segments = [] } = await params;
   const path = `/${segments.join("/")}`;
@@ -46,5 +50,8 @@ async function RouteContent({
     redirect(`/login?next=${encodeURIComponent(path)}`);
   }
   const initialData = await getBootstrap();
-  return <AppExperience path={segments} initialData={initialData} />;
+  const queryParams = await searchParams;
+  const searchTerm = typeof queryParams.q === "string" ? queryParams.q.slice(0, 120) : "";
+  const opportunityType = typeof queryParams.type === "string" ? queryParams.type : "";
+  return <AppExperience path={segments} initialData={initialData} initialSearchTerm={searchTerm} initialOpportunityType={opportunityType} />;
 }

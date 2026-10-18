@@ -56,7 +56,7 @@ import {
   formatCompensation,
 } from "@/components/opportunity-bridge/shared";
 
-type Props = { path: string[]; initialData: BootstrapData };
+type Props = { path: string[]; initialData: BootstrapData; initialSearchTerm?: string; initialOpportunityType?: string };
 type Flash = { tone: "success" | "error" | "info"; message: string } | null;
 
 const roleNames: Record<Role, string> = {
@@ -93,7 +93,7 @@ export function isProtectedPath(path: string): boolean {
   return protectedRoutes.some((route) => path === route || path.startsWith(`${route}/`));
 }
 
-export function AppExperience({ path: segments, initialData }: Props) {
+export function AppExperience({ path: segments, initialData, initialSearchTerm = "", initialOpportunityType = "" }: Props) {
   const router = useRouter();
   const path = `/${segments.join("/")}`;
   const data = initialData;
@@ -172,7 +172,7 @@ export function AppExperience({ path: segments, initialData }: Props) {
       if (href === path) router.refresh();
       else router.push(href);
     },
-  });
+  }, initialSearchTerm, initialOpportunityType);
 
   return (
     <div className="app-root">
@@ -207,9 +207,9 @@ type RouteContext = {
 
 type RenderedRoute = { node: React.ReactNode; propsHasFlash: boolean };
 
-function renderRoute(path: string, segments: string[], data: BootstrapData, context: RouteContext): RenderedRoute {
+function renderRoute(path: string, segments: string[], data: BootstrapData, context: RouteContext, initialSearchTerm: string, initialOpportunityType: string): RenderedRoute {
   if (path === "/") return { node: <LandingPage data={data} context={context} />, propsHasFlash: false };
-  if (path === "/opportunities") return { node: <Marketplace data={data} context={context} />, propsHasFlash: false };
+  if (path === "/opportunities") return { node: <Marketplace data={data} context={context} initialSearchTerm={initialSearchTerm} initialOpportunityType={initialOpportunityType} />, propsHasFlash: false };
   if (path === "/startups") return { node: <StartupDirectory data={data} context={context} />, propsHasFlash: false };
   if (path.startsWith("/opportunities/")) return { node: <OpportunityDetail id={segments[1] ?? ""} data={data} context={context} />, propsHasFlash: false };
   if (path === "/people") return { node: <PeopleDirectory data={data} context={context} />, propsHasFlash: false };
@@ -259,6 +259,21 @@ function LandingPage({ data, context }: { data: BootstrapData; context: RouteCon
           <div className="hero-availability"><span className="availability-dot" /> A brighter way to find your next step</div>
           <h1>Your next big<br />opportunity <span>starts here.</span></h1>
           <p>Find the work, people, and ideas that move you forward. OpportunityBridge brings your next possibility within reach.</p>
+          <form className="hero-search-form" action="/opportunities" method="get">
+            <label className="hero-search-input">
+              <Search size={18} aria-hidden="true" />
+              <span className="sr-only">Search opportunities by title, skill, or keyword</span>
+              <input name="q" type="search" maxLength={120} placeholder="Search jobs, skills, or opportunities" />
+            </label>
+            <label className="hero-search-type">
+              <span className="sr-only">Opportunity type</span>
+              <select name="type" defaultValue="">
+                <option value="">All types</option>
+                {typeOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            <button className="button button-dark" type="submit"><Search size={16} />Search</button>
+          </form>
           <div className="hero-actions"><Link className="button button-dark" href="/opportunities">Explore opportunities <ArrowRight size={17} /></Link><Link className="button button-light" href={data.currentUser ? "/dashboard" : "/register"}>{data.currentUser ? "Go to your space" : "Join OpportunityBridge"}</Link></div>
           <div className="hero-note"><span className="avatar-stack"><i>AS</i><i>PM</i><i>MN</i><i>DP</i></span><span>Explore a friendly, fictional demo community <strong>— no account needed to look around.</strong></span></div>
         </div>
@@ -335,9 +350,9 @@ async function handleSave(opportunity: Opportunity, data: BootstrapData, context
   });
 }
 
-function Marketplace({ data, context }: { data: BootstrapData; context: RouteContext }) {
-  const [query, setQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
+function Marketplace({ data, context, initialSearchTerm, initialOpportunityType }: { data: BootstrapData; context: RouteContext; initialSearchTerm: string; initialOpportunityType: string }) {
+  const [query, setQuery] = useState(initialSearchTerm);
+  const [typeFilter, setTypeFilter] = useState(() => typeOptions.some(([value]) => value === initialOpportunityType) ? initialOpportunityType : "");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [skillFilter, setSkillFilter] = useState("");
@@ -382,7 +397,7 @@ function Marketplace({ data, context }: { data: BootstrapData; context: RouteCon
   return (
     <div className="content-page marketplace-page">
       <PageHeading eyebrow="The opportunity marketplace" title="Find a next step that feels like you." description="Search one thoughtful collection of internships, jobs, projects, funding, and people who can help." action={<span className="count-chip">{filtered.length} open in this demo</span>} />
-      <div className="marketplace-toolbar"><label className="search-control"><Search size={18} /><span className="sr-only">Search opportunities</span><input value={query} onChange={(event) => { setQuery(event.target.value); setVisibleCount(12); }} placeholder="Try “design”, “remote”, or “React”" /></label><label className="select-control"><ArrowDownWideNarrow size={15} /><span className="sr-only">Sort opportunities</span><select value={sort} onChange={(event) => setSort(event.target.value)}><option value="relevance">Best fit for me</option><option value="newest">Newest first</option><option value="deadline">Deadline soonest</option><option value="compensation">Compensation</option></select></label><div className="view-toggle" aria-label="View format"><button className={view === "grid" ? "selected" : ""} type="button" onClick={() => setView("grid")} aria-label="Grid view">▦</button><button className={view === "list" ? "selected" : ""} type="button" onClick={() => setView("list")} aria-label="List view"><List size={17} /></button></div></div>
+      <div className="marketplace-toolbar"><form className="marketplace-search-form" action="/opportunities" method="get"><label className="search-control"><Search size={18} /><span className="sr-only">Search opportunities</span><input name="q" type="search" maxLength={120} value={query} onChange={(event) => { setQuery(event.target.value); setVisibleCount(12); }} placeholder="Try “design”, “remote”, or “React”" /></label><button className="button button-dark marketplace-search-button" type="submit"><Search size={15} />Search</button></form><label className="select-control"><ArrowDownWideNarrow size={15} /><span className="sr-only">Sort opportunities</span><select value={sort} onChange={(event) => setSort(event.target.value)}><option value="relevance">Best fit for me</option><option value="newest">Newest first</option><option value="deadline">Deadline soonest</option><option value="compensation">Compensation</option></select></label><div className="view-toggle" aria-label="View format"><button className={view === "grid" ? "selected" : ""} type="button" onClick={() => setView("grid")} aria-label="Grid view">▦</button><button className={view === "list" ? "selected" : ""} type="button" onClick={() => setView("list")} aria-label="List view"><List size={17} /></button></div></div>
       <div className="marketplace-layout">
         <aside className="filter-panel">
           <div className="filter-title"><Filter size={17} /><strong>Refine your search</strong>{activeFilters ? <button type="button" className="text-button" onClick={resetFilters}>Clear all</button> : null}</div>
