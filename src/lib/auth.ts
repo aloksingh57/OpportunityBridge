@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { readStore } from "@/lib/store";
+import { isDemoModeEnabled, isSupabaseAuthConfigured } from "@/lib/runtime-mode";
+import { createSupabaseServerClient, isMissingSupabaseSession, readSupabaseProfile } from "@/lib/supabase/server";
 import type { ActorRole, Role, UserProfile } from "@/types/opportunity-bridge";
 
 export const sessionCookieName = "ob_demo_session";
@@ -42,6 +44,18 @@ function verifySession(value: string): string | null {
 }
 
 export async function getActor(cookieHeader?: string): Promise<Actor | null> {
+  if (!isDemoModeEnabled()) {
+    if (!isSupabaseAuthConfigured()) return null;
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      if (isMissingSupabaseSession(error)) return null;
+      throw new Error("The Supabase session could not be verified.");
+    }
+    if (!data.user) return null;
+    const profile = await readSupabaseProfile(supabase, data.user.id);
+    return { id: profile.id, role: profile.role, roles: [profile.role], isAdmin: false };
+  }
   const session = cookieHeader === undefined
     ? (await cookies()).get(sessionCookieName)?.value
     : cookieHeader.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${sessionCookieName}=`))?.slice(sessionCookieName.length + 1);

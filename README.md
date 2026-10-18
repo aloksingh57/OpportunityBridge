@@ -7,6 +7,8 @@ OpportunityBridge is a responsive, role-aware professional discovery and collabo
 
 > **Demo-data notice:** This repository starts in local demo mode. Profiles, organizations, opportunity listings, applications, testimonials, notifications, and activity are fictional. They are not verified vacancies, real partnerships, or evidence of platform adoption.
 
+> **Production status:** This is a runnable local demo, not a production-ready service. An optional Supabase Auth sign-in/sign-up flow and self-only profile migration are included, but they are not configured in this workspace. Opportunity, application, messaging, moderation, and dashboard workflows still use the local demo store. Production mode fails closed for those workflows; see the [acceptance matrix](./docs/implementation-acceptance-matrix.md) and [operations runbook](./docs/operations-runbook.md).
+
 ## Get started
 
 ### Requirements
@@ -32,6 +34,7 @@ Open [http://localhost:3000](http://localhost:3000). The local data file is crea
 npm run lint
 npm run typecheck
 npm test
+npm run recommendations:evaluate -- --help
 npm run build
 npm start
 ```
@@ -43,6 +46,8 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'
 ```
 
 The value printed by this command is a secret: keep it out of source control and logs.
+
+Production mode deliberately disables demo API access by default. To run a clearly labelled demo build in production mode only, explicitly set `OPPORTUNITYBRIDGE_ENABLE_DEMO=true`; this does not enable real accounts, persistence, or make the application suitable for real users. Do not use that flag for a production launch.
 
 ## Demo walkthrough
 
@@ -99,6 +104,8 @@ Remove-Item -LiteralPath ".data\opportunitybridge.json"
 
 The JSON repository serializes writes within one Node.js process and uses atomic file replacement. It is a durable local demonstration adapter—not a multi-process database, production deployment store, or substitute for PostgreSQL constraints. Do not share a writable `.data` file between application instances.
 
+Applications now include a persisted demo status timeline for submission and later changes. Existing local stores are migrated by recording their current status as a single baseline event; the app does not invent prior transitions.
+
 ## Configuration and security boundaries
 
 `.env.example` contains placeholders only:
@@ -106,21 +113,30 @@ The JSON repository serializes writes within one Node.js process and uses atomic
 | Variable | Purpose |
 |---|---|
 | `APP_URL` | Documented local application URL |
-| `AUTH_SECRET` | HMAC signing key for HTTP-only demo session cookies; required in production |
+| `AUTH_SECRET` | HMAC signing key for demo session cookies; required only when production demo sessions are deliberately enabled |
 | `OPPORTUNITYBRIDGE_ADMIN_KEY` | Optional server-only key that enables a separate admin demo session; no admin role is offered in the public persona selector |
+| `OPPORTUNITYBRIDGE_ENABLE_DEMO` | Must remain `false` for production; set to `true` only to deliberately expose fictional demo APIs |
+| `SUPABASE_URL` | Optional HTTPS Supabase project URL for production email/password authentication |
+| `SUPABASE_PUBLISHABLE_KEY` | Preferred Supabase public API key; only used server-side |
+| `SUPABASE_ANON_KEY` | Legacy alternative to `SUPABASE_PUBLISHABLE_KEY`; do not use a service-role key |
 
-The current login/register experience intentionally provides **demo identity switching**, not production user authentication: it has no password login, identity provider, email verification, or account recovery service. Never expose a demo deployment as a production authentication system. Before production, replace it with an established identity provider and persistent relational database, rotate session secrets, configure HTTPS, and add shared operational rate limits/monitoring.
+Local development continues to use clearly labelled demo identity switching. When Supabase is configured in production, `/login` and `/register` use Supabase Auth; new profiles begin with the least-privileged `student` role assigned by the database trigger, and row-level security limits profile reads to their owner. This slice does not enable production opportunity/community workflows, password recovery, verified role assignment, or production readiness. Apply `supabase/migrations/20260617000000_create_authenticated_profiles.sql` to the intended Supabase project before enabling the sign-in routes. Configure the project's site URL, email-confirmation policy, and a production email sender separately.
 
-Server-side Zod schemas validate API inputs. HMAC-signed, `HttpOnly`, `SameSite=Lax` session cookies identify a chosen demo persona. Ownership and role checks run in route/domain logic—not just in the UI. Per-account process-local limits protect actions (120/minute), private PDF uploads (10/hour), and downloads (60/minute); these are demo safeguards, not distributed production rate limits. Applicant notes are excluded from applicant responses; publisher-only notes are shown only to the listing owner or authorized admin. Mentoring requests enforce provider roles and valid state transitions. Uploaded PDF documents are private to the requester until a provider accepts the review session; downloads verify the current session relationship on every request. Reports are owner-private and admin-visible; blocks suppress profiles and prevent messaging/session access. Admin actions and report review decisions are recorded with actor, target, reason, and timestamp. User-submitted profile and message text is rendered as text, not injected HTML.
+Server-side Zod schemas validate API inputs. HMAC-signed, `HttpOnly`, `SameSite=Lax` session cookies identify a chosen demo persona. Ownership and role checks run in route/domain logic—not just in the UI. Per-account process-local limits protect actions (120/minute), private PDF uploads (10/hour), and downloads (60/minute); these are demo safeguards, not distributed production rate limits. Applicant notes are excluded from applicant responses; publisher-only notes are shown only to the listing owner or authorized admin. Mentoring requests enforce provider roles and valid state transitions. Uploaded PDF documents are private to the requester until a provider accepts the review session; downloads verify the current session relationship on every request. Reports are owner-private and admin-visible; blocks suppress profiles and prevent messaging/session access. Admin actions and report review decisions are recorded with actor, target, reason, and timestamp. User-submitted profile and message text is rendered as text, not injected HTML. API requests receive correlation IDs; security headers and liveness/readiness endpoints are configured, while external log collection remains unconfigured.
 
-No AI, email, payments, calendar invite, external vacancy feed, or third-party database is configured. Startup and opportunity data are local fictional seed records, not a live external API or verified dataset. Contact messages are saved to the local demo inbox; no email is sent. Local fictional content is not verified and must not be used to make hiring or investment decisions.
+No AI, SMTP provider, payments, calendar invite, external vacancy feed, or Supabase project is configured in this workspace. Startup and opportunity data are local fictional seed records, not a live external API or verified dataset. Contact messages are saved to the local demo inbox; no email is sent. Local fictional content is not verified and must not be used to make hiring or investment decisions. Production deployment remains blocked; `/api/health/ready` reports this explicitly.
 
 ## Technical overview
 
 - Next.js App Router, React, TypeScript, Tailwind CSS, Lucide icons, and Zod
 - Server Components provide request-scoped, permission-filtered bootstrap data
 - Route Handlers implement the local demo session, validated mutations, moderation, and persistence boundary
+- `/api/health/live` and `/api/health/ready` expose non-sensitive process/readiness status; production readiness explicitly remains false
+- `src/proxy.ts` adds per-request correlation IDs and blocks demo APIs in production while allowing only configured Supabase account routes
+- Global response headers include MIME sniffing, framing, referrer, and browser-permission protections
 - CSS-based illustration and motion; `prefers-reduced-motion` is respected
-- Node's built-in test runner covers seed integrity, recommendation behavior, and application-state transitions
+- Node's built-in test runner covers seed integrity, legacy status history migration, runtime mode, recommendation behavior, and application-state transitions
 
-See [docs/product-brief-mapping.md](./docs/product-brief-mapping.md) for the requirements-to-implementation map and [docs/demo-runbook.md](./docs/demo-runbook.md) for a concise judge walkthrough.
+See [docs/product-brief-mapping.md](./docs/product-brief-mapping.md) for the feature map, the [implementation acceptance matrix](./docs/implementation-acceptance-matrix.md) for evidence and release blockers, [docs/operations-runbook.md](./docs/operations-runbook.md) for operating guidance, and [docs/demo-runbook.md](./docs/demo-runbook.md) for a concise judge walkthrough.
+
+The offline recommendation evaluator validates consented, versioned JSONL and measures a supplied ranking against authored/confirmed relevance labels. It rejects synthetic data in production mode and deliberately does not train a model or infer labels from clicks. See [docs/recommendation-pipeline.md](./docs/recommendation-pipeline.md) for the schema, commands, limits, metrics, and readiness constraints.

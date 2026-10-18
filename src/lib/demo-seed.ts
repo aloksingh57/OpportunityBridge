@@ -1,5 +1,6 @@
 import type {
   Application,
+  ApplicationStatusHistory,
   Connection,
   Conversation,
   Message,
@@ -121,6 +122,15 @@ const applications: Application[] = applicationStatuses.map((status, index) => (
   submittedAt: pastDays(index + 1),
   updatedAt: pastDays(index),
 }));
+const applicationStatusHistory: ApplicationStatusHistory[] = applications.map((application) => ({
+  id: `application-history-seed-${application.id}`,
+  applicationId: application.id,
+  actorId: opportunities.find((opportunity) => opportunity.id === application.opportunityId)?.publisherId ?? "system:demo-seed",
+  fromStatus: null,
+  toStatus: application.status,
+  createdAt: application.submittedAt,
+  isDemo: true,
+}));
 
 const connections: Connection[] = [
   { id: "conn-001", requesterId: "student-aarav", recipientId: "mentor-meera", status: "accepted", createdAt: pastDays(16), updatedAt: pastDays(14) },
@@ -162,6 +172,7 @@ export const seedStore: OpportunityBridgeStore = {
   })),
   opportunities,
   applications,
+  applicationStatusHistory,
   connections,
   conversations,
   messages,

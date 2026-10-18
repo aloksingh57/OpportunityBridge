@@ -41,6 +41,22 @@ export async function getBootstrap(cookieHeader?: string): Promise<BootstrapData
       ...application,
       applicant: toPublicUser(applicant),
       opportunity,
+      statusHistory: store.applicationStatusHistory
+        .filter((event) => event.applicationId === application.id)
+        .sort((first, second) => first.createdAt.localeCompare(second.createdAt))
+        .map((event) => ({
+          id: event.id,
+          fromStatus: event.fromStatus,
+          toStatus: event.toStatus,
+          createdAt: event.createdAt,
+          actorLabel: event.actorId === actor?.id
+            ? "You"
+            : event.actorId === opportunity.publisherId
+              ? "Opportunity publisher"
+              : event.actorId === application.applicantId
+                ? "Applicant"
+                : "Platform",
+        })),
     };
     if (!isPublisher && !canSeeAll) {
       const { internalNote: _privateNote, ...withoutPrivateNote } = visibleApplication;

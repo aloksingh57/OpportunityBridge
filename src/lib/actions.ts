@@ -118,6 +118,15 @@ export async function runAction(
           updatedAt: now,
         };
         store.applications.push(application);
+        store.applicationStatusHistory.push({
+          id: newId("application-history"),
+          applicationId: application.id,
+          actorId: actor.id,
+          fromStatus: null,
+          toStatus: application.status,
+          createdAt: now,
+          isDemo: true,
+        });
         addNotification(store, actor.id, "application", "Application received", `Your application for ${opportunity.title} has been saved.`, "/applications");
         addNotification(store, opportunity.publisherId, "application", "A new demo application arrived", `Someone applied for ${opportunity.title}.`, "/manage-applicants");
         return { message: "Your application was submitted and saved." };
@@ -131,8 +140,18 @@ export async function runAction(
         if (!canTransitionApplication(application.status, action.status)) {
           throw new ActionError(`An application cannot move from ${application.status} to ${action.status}.`, 409);
         }
+        const fromStatus = application.status;
         application.status = action.status;
         application.updatedAt = now;
+        store.applicationStatusHistory.push({
+          id: newId("application-history"),
+          applicationId: application.id,
+          actorId: actor.id,
+          fromStatus,
+          toStatus: action.status,
+          createdAt: now,
+          isDemo: true,
+        });
         addNotification(store, application.applicantId, "application", "Application status changed", `Your application for ${opportunity.title} is now ${action.status}.`, `/applications/${application.id}`);
         return { message: `Application updated to ${action.status}.` };
       }
@@ -152,8 +171,18 @@ export async function runAction(
         if (!application) throw new ActionError("That application could not be found.", 404);
         if (application.applicantId !== actor.id) throw new ActionError("Only the applicant can withdraw this application.", 403);
         if (!canTransitionApplication(application.status, "withdrawn")) throw new ActionError("This application can no longer be withdrawn.", 409);
+        const fromStatus = application.status;
         application.status = "withdrawn";
         application.updatedAt = now;
+        store.applicationStatusHistory.push({
+          id: newId("application-history"),
+          applicationId: application.id,
+          actorId: actor.id,
+          fromStatus,
+          toStatus: "withdrawn",
+          createdAt: now,
+          isDemo: true,
+        });
         return { message: "Your application was withdrawn." };
       }
       case "connection-request": {

@@ -86,6 +86,16 @@ export interface Application {
   updatedAt: string;
 }
 
+export interface ApplicationStatusHistory {
+  id: string;
+  applicationId: string;
+  actorId: string;
+  fromStatus: ApplicationStatus | null;
+  toStatus: ApplicationStatus;
+  createdAt: string;
+  isDemo: true;
+}
+
 export interface Connection {
   id: string;
   requesterId: string;
@@ -209,6 +219,7 @@ export interface OpportunityBridgeStore {
   users: UserProfile[];
   opportunities: Opportunity[];
   applications: Application[];
+  applicationStatusHistory: ApplicationStatusHistory[];
   connections: Connection[];
   conversations: Conversation[];
   messages: Message[];
@@ -232,7 +243,12 @@ export interface BootstrapData {
   people: PublicUser[];
   opportunities: Opportunity[];
   applications: Array<
-    Omit<Application, "internalNote"> & { internalNote?: string; applicant?: PublicUser; opportunity?: Opportunity }
+    Omit<Application, "internalNote"> & {
+      internalNote?: string;
+      applicant?: PublicUser;
+      opportunity?: Opportunity;
+      statusHistory: Array<Pick<ApplicationStatusHistory, "id" | "fromStatus" | "toStatus" | "createdAt"> & { actorLabel: string }>;
+    }
   >;
   connections: Array<Connection & { otherPerson: PublicUser }>;
   conversations: Array<Conversation & { otherPerson: PublicUser; messages: Message[] }>;

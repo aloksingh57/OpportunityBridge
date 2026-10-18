@@ -72,6 +72,15 @@ export const OpportunityBridgeStoreSchema = z.object({
     submittedAt: timestampSchema,
     updatedAt: timestampSchema,
   })),
+  applicationStatusHistory: z.array(z.object({
+    id: z.string(),
+    applicationId: z.string(),
+    actorId: z.string(),
+    fromStatus: z.enum(applicationStatuses).nullable(),
+    toStatus: z.enum(applicationStatuses),
+    createdAt: timestampSchema,
+    isDemo: z.literal(true),
+  })).default([]),
   connections: z.array(z.object({
     id: z.string(),
     requesterId: z.string(),

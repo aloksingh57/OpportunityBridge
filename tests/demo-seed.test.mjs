@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { seedStore } from "../src/lib/demo-seed.ts";
+import { migrateApplicationStatusHistory } from "../src/lib/application-history.ts";
 
 test("the demo seed contains enough linked people, listings, and varied applications", () => {
   assert.ok(seedStore.users.length >= 18);
@@ -13,6 +14,32 @@ test("the demo seed contains enough linked people, listings, and varied applicat
   for (const application of seedStore.applications) {
     assert.ok(userIds.has(application.applicantId), `missing applicant ${application.applicantId}`);
     assert.ok(opportunityIds.has(application.opportunityId), `missing opportunity ${application.opportunityId}`);
+  }
+});
+
+test("every seeded application has a clearly synthetic current-status history event", () => {
+  const historyByApplication = new Map();
+  for (const event of seedStore.applicationStatusHistory) {
+    const events = historyByApplication.get(event.applicationId) ?? [];
+    events.push(event);
+    historyByApplication.set(event.applicationId, events);
+    assert.equal(event.isDemo, true);
+    assert.equal(event.fromStatus, null);
+  }
+  for (const application of seedStore.applications) {
+    const history = historyByApplication.get(application.id);
+    assert.equal(history?.length, 1);
+    assert.equal(history?.[0].toStatus, application.status);
+  }
+});
+
+test("legacy applications receive one explicit migration baseline without invented transitions", () => {
+  const migrated = migrateApplicationStatusHistory(seedStore.applications.slice(0, 2));
+  assert.equal(migrated.length, 2);
+  for (const event of migrated) {
+    assert.equal(event.fromStatus, null);
+    assert.equal(event.actorId, "system:legacy-migration");
+    assert.equal(event.isDemo, true);
   }
 });
 

@@ -1,10 +1,18 @@
 import { timingSafeEqual } from "node:crypto";
 import { adminUserId, createSessionValue, setSessionCookie } from "@/lib/auth";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   const configuredKey = process.env.OPPORTUNITYBRIDGE_ADMIN_KEY;
   if (!configuredKey) {
     return Response.json({ error: "Admin demo access is disabled. Configure OPPORTUNITYBRIDGE_ADMIN_KEY on the server to enable it." }, { status: 403 });
+  }
+  const limit = consumeRateLimit("admin-session-attempts", 12, 15 * 60_000);
+  if (!limit.allowed) {
+    return Response.json(
+      { error: "Too many admin sign-in attempts. Please wait before trying again." },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
+    );
   }
   let body: unknown;
   try {
