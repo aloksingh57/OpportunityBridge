@@ -1,0 +1,16 @@
+{
+  "name": "OpportunityBridge",
+  "short_name": "OpportunityBridge",
+  "description": "Discover opportunities, connect with people, and build your future.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8f7f3",
+  "theme_color": "#f8f7f3",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
