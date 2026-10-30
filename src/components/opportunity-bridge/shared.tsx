@@ -97,7 +97,8 @@ export function PublicNav({
           <Link href="/sessions">Sessions</Link>
           <Link href="/messages">Messages</Link>
           <Link href="/recommendations">For you</Link>
-          {currentUser.roles.some((role) => role === "founder" || role === "recruiter") ? <Link href="/manage-opportunities">Manage listings</Link> : null}
+          {currentUser.roles.some((role) => role === "founder" || role === "existing-company" || role === "recruiter") ? <Link href="/manage-opportunities">Manage listings</Link> : null}
+          {currentUser.roles.some((role) => role === "founder" || role === "existing-company") ? <Link href="/company-verification">Company verification</Link> : null}
         </div>
       ) : null}
     </header>

@@ -44,6 +44,7 @@ import type {
   Opportunity,
   OpportunityType,
   PublicUser,
+  RegistrationIdentifierType,
   Role,
 } from "@/types/opportunity-bridge";
 import {
@@ -62,12 +63,22 @@ type Flash = { tone: "success" | "error" | "info"; message: string } | null;
 const roleNames: Record<Role, string> = {
   student: "Student",
   "job-seeker": "Job seeker",
-  founder: "Founder",
+  founder: "Startup founder",
+  "existing-company": "Existing company",
   investor: "Investor",
   mentor: "Mentor",
   advisor: "Advisor",
   recruiter: "Recruiter",
 };
+
+const verificationStatusLabels = {
+  "not-submitted": "Not submitted",
+  "pending-verification": "Pending verification",
+  verified: "Verified",
+  rejected: "Rejected",
+  "additional-information-required": "Additional information required",
+  expired: "Expired",
+} as const;
 
 const opportunityTypeNames: Record<OpportunityType, string> = {
   internship: "Internship",
@@ -87,6 +98,7 @@ const typeOptions = Object.entries(opportunityTypeNames) as Array<[OpportunityTy
 const protectedRoutes = [
   "/onboarding", "/dashboard", "/profile", "/settings", "/notifications", "/messages", "/connections",
   "/saved", "/applications", "/publish", "/manage-opportunities", "/manage-applicants", "/recommendations", "/sessions",
+  "/company-verification",
 ];
 
 export function isProtectedPath(path: string): boolean {
@@ -235,7 +247,8 @@ function renderRoute(path: string, segments: string[], data: BootstrapData, cont
   if (path === "/manage-applicants") return { node: <ManageApplicantsPage data={data} context={context} />, propsHasFlash: true };
   if (path === "/recommendations") return { node: <RecommendationsPage data={data} context={context} />, propsHasFlash: false };
   if (path === "/sessions") return { node: <SessionsPage data={data} context={context} />, propsHasFlash: true };
-  if (path === "/admin" || path === "/admin/users" || path === "/admin/opportunities") return { node: <AdminPage path={path} data={data} context={context} />, propsHasFlash: true };
+  if (path === "/company-verification") return { node: <CompanyVerificationPage data={data} context={context} />, propsHasFlash: true };
+  if (path === "/admin" || path === "/admin/users" || path === "/admin/opportunities" || path === "/admin/verifications") return { node: <AdminPage path={path} data={data} context={context} />, propsHasFlash: true };
   return { node: <InfoPage title="We couldn?t find that page." description="This address does not match an OpportunityBridge page. Try one of the links below." action={<Link className="button button-dark" href="/">Go to the home page <ArrowRight size={16} /></Link>} />, propsHasFlash: false };
 }
 
@@ -636,6 +649,7 @@ function LoginPage({ data, context }: { data: BootstrapData; context: RouteConte
 function RegisterPage({ data, context }: { data: BootstrapData; context: RouteContext }) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<Role>("student");
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -651,6 +665,13 @@ function RegisterPage({ data, context }: { data: BootstrapData; context: RouteCo
         roles,
         location: form.get("location"),
         skills,
+        organizationName: form.get("organizationName"),
+        industry: form.get("industry"),
+        businessEmail: form.get("businessEmail"),
+        website: form.get("website"),
+        identifierType: form.get("identifierType") || undefined,
+        identifier: form.get("identifier"),
+        verificationDetails: form.get("verificationDetails"),
       });
       context.navigate("/onboarding");
     } catch (submitError) {
@@ -663,10 +684,21 @@ function RegisterPage({ data, context }: { data: BootstrapData; context: RouteCo
     <form className="form-stack" onSubmit={submit}>
       <label>Your name<input name="name" required minLength={2} maxLength={80} autoComplete="name" placeholder="e.g. Aarav Sharma" /></label>
       <label>Email for this demo<input name="email" type="email" required maxLength={150} autoComplete="email" placeholder="you@example.com" /><small className="field-hint">Used only to identify your local demo profile; no email is sent.</small></label>
-      <label>How do you see yourself here?<select name="role" required defaultValue="student">{Object.entries(roleNames).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      <label>How do you see yourself here?<select name="role" required value={selectedRole} onChange={(event) => setSelectedRole(event.target.value as Role)}>{Object.entries(roleNames).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       <fieldset className="role-choice-set"><legend>Activate other roles too <span className="optional-label">Optional</span></legend><p className="field-hint">One account can take part in more than one way. You can change these later.</p>{Object.entries(roleNames).map(([value, label]) => <label className="checkbox-label" key={value}><input type="checkbox" name="roles" value={value} />{label}</label>)}</fieldset>
       <label>City or region<input name="location" required minLength={2} maxLength={100} placeholder="e.g. Pune, India" /></label>
       <label>Your skills <span className="optional-label">Optional · separate with commas</span><input name="skills" maxLength={300} placeholder="e.g. React, research, writing" /></label>
+      {selectedRole === "founder" || selectedRole === "existing-company" ? <fieldset className="verification-form-section">
+        <legend>Company Identity Verification</legend>
+        <p className="field-hint">Organization details are saved to your local demo profile. A submitted identifier starts a manual review; format validation never means verified.</p>
+        <label>{selectedRole === "founder" ? "Startup name" : "Legal company name"}<input name="organizationName" required minLength={2} maxLength={120} /></label>
+        <label>Industry<input name="industry" required minLength={2} maxLength={80} /></label>
+        <label>Official business email <span className="optional-label">Optional</span><input name="businessEmail" type="email" maxLength={150} /></label>
+        <label>Website <span className="optional-label">Optional</span><input name="website" type="url" maxLength={200} placeholder="https://example.com" /></label>
+        <label>Registration identifier type <span className="optional-label">Optional</span><select name="identifierType" defaultValue=""><option value="">Submit verification later</option><option value="cin">CIN</option><option value="llpin">LLPIN</option><option value="gstin">GSTIN</option><option value="dpiit">DPIIT startup recognition</option><option value="other">Other supported identifier</option></select></label>
+        <label>Registration identifier <span className="optional-label">Optional</span><input name="identifier" maxLength={100} autoComplete="off" /></label>
+        <label>Review context <span className="optional-label">Optional</span><textarea name="verificationDetails" maxLength={1000} rows={3} placeholder="Add context that helps an administrator review the request." /></label>
+      </fieldset> : null}
       <label className="checkbox-label"><input type="checkbox" required />I understand this creates fictional local demo data, not a production account.</label>
       <button className="button button-dark full-width" type="submit" disabled={submitting}>{submitting ? <LoaderCircle className="spin" size={16} /> : <ArrowRight size={16} />}Create demo profile</button>
     </form><p className="auth-switch">Already exploring? <Link href="/login">Choose an existing demo profile</Link></p><p className="field-hint">{data.people.length} fictional profiles are already available in demo sign-in.</p>
@@ -725,6 +757,7 @@ function DashboardPage({ data, context }: { data: BootstrapData; context: RouteC
     student: "A small step can open a big door.",
     "job-seeker": "Your next role is closer than it feels.",
     founder: "Build something worth joining.",
+    "existing-company": "Build a team people believe in.",
     investor: "Meet the founders shaping what's next.",
     mentor: "Your experience can open a door.",
     advisor: "Good advice starts with listening.",
@@ -748,12 +781,18 @@ function DashboardPage({ data, context }: { data: BootstrapData; context: RouteC
     data.opportunities.filter((item) => item.status === "published"),
     new Date(),
   ).slice(0, 3);
-  const metricCards: Array<{ label: string; value: number | string; href: string; detail: string }> = activeRole === "founder" || activeRole === "recruiter"
+  const metricCards: Array<{ label: string; value: number | string; href: string; detail: string }> = activeRole === "founder" || activeRole === "existing-company" || activeRole === "recruiter"
     ? [
         { label: "Live listings", value: activeListings.length, href: "/manage-opportunities", detail: "Your published opportunities" },
         { label: "Applicants", value: publisherApplications.length, href: "/manage-applicants", detail: "Across your listings" },
         { label: "Need a response", value: publisherApplications.filter((item) => item.status === "submitted").length, href: "/manage-applicants", detail: "New submissions" },
         { label: "Profile completeness", value: `${data.metrics.profileCompletion}%`, href: "/profile", detail: "Make your organization easier to find" },
+        ...(activeRole === "existing-company" ? [{
+          label: "Company verification",
+          value: verificationStatusLabels[data.organization?.verificationStatus ?? "not-submitted"],
+          href: "/company-verification",
+          detail: "Manual review status",
+        }] : []),
       ]
     : activeRole === "investor"
       ? [
@@ -775,7 +814,7 @@ function DashboardPage({ data, context }: { data: BootstrapData; context: RouteC
             { label: "Saved opportunities", value: data.metrics.savedOpportunities, href: "/saved", detail: "Worth another look" },
             { label: "Profile completeness", value: `${data.metrics.profileCompletion}%`, href: "/profile", detail: "Improve recommendations" },
           ];
-  const suggestedRoles: Role[] = activeRole === "founder"
+  const suggestedRoles: Role[] = activeRole === "founder" || activeRole === "existing-company"
     ? ["investor", "advisor", "mentor"]
     : activeRole === "investor"
       ? ["founder", "advisor"]
@@ -791,8 +830,14 @@ function DashboardPage({ data, context }: { data: BootstrapData; context: RouteC
       <span>VIEW AS</span>
       {user.roles.map((role) => <button key={role} type="button" role="tab" aria-selected={activeRole === role} className={activeRole === role ? "active" : ""} onClick={() => setActiveRole(role)}>{roleNames[role]}</button>)}
     </div> : null}
+    {(activeRole === "founder" || activeRole === "existing-company") ? <section className="verification-summary">
+      <div><p className="eyebrow">COMPANY IDENTITY VERIFICATION</p><h2>{data.organization?.name ?? "Organization profile"}</h2><p>{data.organization ? verificationStatusLabels[data.organization.verificationStatus] : "Not submitted"} · identifiers are reviewed by an administrator; format checks do not prove identity.</p></div>
+      <Link className="button button-light button-small" href="/company-verification">Review verification <ArrowRight size={14} /></Link>
+    </section> : null}
     <div className="dashboard-metrics">{metricCards.map(({ label, value, href, detail }) => <Link className="metric-card" key={label} href={href}><span>{label}</span><strong>{value}</strong><small>{detail} <ArrowUpRight size={13} /></small></Link>)}</div>
-    {(activeRole === "founder" || activeRole === "recruiter")
+    {activeRole === "existing-company"
+      ? <ExistingCompanyDashboard data={data} opportunities={ownedOpportunities} applications={publisherApplications} />
+      : activeRole === "founder" || activeRole === "recruiter"
       ? <PublisherDashboard applications={publisherApplications} opportunities={ownedOpportunities} />
       : activeRole === "investor"
         ? <InvestorDashboard
@@ -810,6 +855,41 @@ function DashboardPage({ data, context }: { data: BootstrapData; context: RouteC
       <div className="dashboard-panel dashboard-profile-panel"><div className="profile-progress-icon"><BadgeCheck size={20} /></div><p className="eyebrow">PROFILE QUALITY</p><h2>{data.metrics.profileCompletion}% complete</h2><p>Adding clear skills, interests, and a short introduction helps people and recommendations understand your goals.</p><div className="dashboard-progress-track"><span style={{ width: `${data.metrics.profileCompletion}%` }} /></div><Link className="button button-light button-small" href="/profile">Improve profile <ArrowRight size={14} /></Link></div>
     </div>
     <div className="demo-reminder dashboard-demo-reminder"><ShieldCheck size={19} /><div><b>Local demo data</b><p>People, startups, listings, applications, and metrics are fictional. Activity you create is stored in this local demo.</p></div></div>
+  </div>;
+}
+
+function ExistingCompanyDashboard({
+  data,
+  opportunities,
+  applications,
+}: {
+  data: BootstrapData;
+  opportunities: Opportunity[];
+  applications: BootstrapData["applications"];
+}) {
+  const hiringOpportunities = opportunities.filter((opportunity) =>
+    ["internship", "full-time", "part-time"].includes(opportunity.type),
+  );
+  const hiringApplications = applications.filter((application) =>
+    hiringOpportunities.some((opportunity) => opportunity.id === application.opportunityId),
+  );
+  const talent = data.people.filter((person) =>
+    person.roles.some((role) => role === "student" || role === "job-seeker"),
+  ).slice(0, 3);
+  return <div className="dashboard-grid company-dashboard">
+    <section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">RECRUITMENT</p><h2>Hiring pipeline</h2></div><Link className="text-link" href="/manage-applicants">Review applicants <ArrowRight size={14} /></Link></div>
+      <p className="quiet-empty">{hiringOpportunities.length} job and internship listings · {hiringApplications.length} applications · {hiringApplications.filter((item) => item.status === "submitted").length} awaiting review</p>
+      {hiringApplications.length ? <div className="suggested-people">{hiringApplications.slice().sort((first, second) => second.submittedAt.localeCompare(first.submittedAt)).slice(0, 4).map((application) => <Link className="suggested-person" href={`/applications/${application.id}`} key={application.id}>
+        {application.applicant ? <PersonAvatar person={application.applicant} /> : null}<span><b>{application.applicant?.name ?? "Applicant"}</b><small>{application.opportunity?.title} · {statusLabels[application.status]}</small></span><ArrowUpRight size={15} />
+      </Link>)}</div> : <p className="quiet-empty">Applications to your official roles will appear here after verification and publication.</p>}
+      <div className="session-card-actions"><Link className="button button-dark button-small" href="/publish">Post an opportunity <Plus size={14} /></Link><Link className="button button-light button-small" href="/manage-opportunities">Manage listings <ArrowRight size={14} /></Link></div>
+    </section>
+    <section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">TALENT DISCOVERY</p><h2>Students and job seekers</h2></div><Link className="text-link" href="/people">Discover talent <ArrowRight size={14} /></Link></div>
+      {talent.length ? <div className="suggested-people">{talent.map((person) => <Link className="suggested-person" href={`/people/${person.id}`} key={person.id}><PersonAvatar person={person} /><span><b>{person.name}</b><small>{person.headline}</small></span><ArrowUpRight size={15} /></Link>)}</div> : <p className="quiet-empty">No talent profiles are available yet.</p>}
+    </section>
+    <section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">PARTNERSHIPS</p><h2>Meet local startups</h2></div><Link className="text-link" href="/startups">Explore startups <ArrowRight size={14} /></Link></div>
+      {data.startups.length ? <div className="suggested-people">{data.startups.slice(0, 3).map((startup) => <Link className="suggested-person" href={`/people/${startup.founder.id}`} key={startup.id}><PersonAvatar person={startup.founder} /><span><b>{startup.name}</b><small>{startup.industry} · {startup.stage}</small></span><ArrowUpRight size={15} /></Link>)}</div> : <p className="quiet-empty">Startup profiles will appear here when available.</p>}
+    </section>
   </div>;
 }
 
@@ -1179,6 +1259,71 @@ function RecommendationsPage({ data, context }: { data: BootstrapData; context: 
   </div>;
 }
 
+function CompanyVerificationPage({ data, context }: { data: BootstrapData; context: RouteContext }) {
+  const user = data.currentUser;
+  const organization = data.organization;
+  const organizationRole = user?.roles.includes("existing-company") || user?.roles.includes("founder");
+  if (!user || !organizationRole) {
+    return <InfoPage title="Organization verification is for company profiles." description="Choose a startup-founder or existing-company profile to manage organization identity verification." action={<Link className="button button-dark" href="/dashboard">Back to dashboard <ArrowRight size={16} /></Link>} />;
+  }
+  const status = organization?.verificationStatus ?? "not-submitted";
+  const request = organization?.verificationRequest ?? null;
+  const canSubmit = status !== "pending-verification" && status !== "verified";
+  const identifierTypes: Array<[RegistrationIdentifierType, string]> = [
+    ["cin", "CIN"],
+    ["llpin", "LLPIN"],
+    ["gstin", "GSTIN"],
+    ["dpiit", "DPIIT startup recognition"],
+    ["other", "Other supported identifier"],
+  ];
+  return <div className="content-page narrow-page">
+    <PageHeading eyebrow="Organization trust" title="Company Identity Verification" description="Submit one identifier appropriate to your organization and jurisdiction. A format check is not proof of identity; an administrator must review every request." />
+    <section className="verification-status-card">
+      <span className={`verification-status status-${status}`}>{verificationStatusLabels[status]}</span>
+      <h2>{organization?.name ?? "Organization details"}</h2>
+      <p>{status === "verified"
+        ? "An administrator reviewed this organization. This demo badge does not establish a real-world identity."
+        : status === "pending-verification"
+          ? "Your request is waiting for manual administrator review. You can continue using the platform while it is pending."
+          : status === "additional-information-required"
+            ? "Please review the administrator note and submit updated information."
+            : status === "rejected"
+              ? "The latest request was rejected. You may correct the details and submit a new request."
+              : status === "expired"
+                ? "This verification has expired. Submit an updated request for review."
+                : "No verification request has been submitted for this organization."}</p>
+      {request?.reviewNote ? <div className="verification-review-note"><b>Administrator note</b><p>{request.reviewNote}</p></div> : null}
+      {request ? <small>Last submitted {new Date(request.submittedAt).toLocaleString("en-IN")} · {request.identifierType.toUpperCase()}: {request.identifier}</small> : null}
+    </section>
+    {!canSubmit ? <div className="verification-info"><ShieldCheck size={18} /><p>{status === "verified" ? "To change verified organization details, contact an administrator." : "A pending request cannot be edited. Wait for the administrator's review before submitting again."}</p></div> : <form className="form-card verification-form" onSubmit={(event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      void context.performAction({
+        type: "submit-company-verification",
+        organizationName: form.get("organizationName"),
+        industry: form.get("industry"),
+        businessEmail: form.get("businessEmail"),
+        website: form.get("website"),
+        identifierType: form.get("identifierType"),
+        identifier: form.get("identifier"),
+        details: form.get("details"),
+      });
+    }}>
+      <h2>Organization information</h2>
+      <label>{user.roles.includes("existing-company") ? "Legal company name" : "Startup name"}<input name="organizationName" defaultValue={organization?.name ?? ""} required minLength={2} maxLength={120} /></label>
+      <label>Industry<input name="industry" defaultValue={organization?.industry ?? ""} required minLength={2} maxLength={80} /></label>
+      <label>Official business email<input name="businessEmail" type="email" defaultValue={organization?.businessEmail ?? ""} required maxLength={150} /></label>
+      <label>Website <span className="optional-label">Optional</span><input name="website" type="url" defaultValue={organization?.website ?? ""} maxLength={200} placeholder="https://example.com" /></label>
+      <label>Registration identifier type<select name="identifierType" defaultValue={request?.identifierType ?? "cin"} required>{identifierTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      <label>Registration identifier<input name="identifier" defaultValue={request?.identifier ?? ""} required maxLength={100} autoComplete="off" /></label>
+      <label>Additional review context <span className="optional-label">Optional</span><textarea name="details" defaultValue={request?.details ?? ""} maxLength={1000} rows={4} /></label>
+      <div className="verification-info"><ShieldCheck size={18} /><p>Do not paste confidential documents or personal credentials here. This local demo does not include private evidence-file storage; production evidence upload requires private object storage and access auditing.</p></div>
+      <button className="button button-dark" type="submit" disabled={context.busy}>{request ? "Submit updated information" : "Submit for manual review"} <ArrowRight size={16} /></button>
+    </form>}
+    <div className="audit-note"><ShieldCheck size={18} /><p>Pending organizations can keep using their profile. Official company opportunities are blocked until manual verification is approved.</p></div>
+  </div>;
+}
+
 function AdminPage({ path, data, context }: { path: string; data: BootstrapData; context: RouteContext }) {
   const [key, setKey] = useState("");
   const [reason, setReason] = useState("");
@@ -1195,6 +1340,7 @@ function AdminPage({ path, data, context }: { path: string; data: BootstrapData;
   const opportunities = summary.opportunities;
   const isUsers = path === "/admin/users";
   const isOpportunities = path === "/admin/opportunities";
+  const isVerifications = path === "/admin/verifications";
   const userAction = async (userId: string, action: "disable" | "restore") => {
     await context.performAction({ type: "moderate-user", userId, action, reason: reason || "Reviewed in the local demo admin workspace." });
   };
@@ -1203,11 +1349,26 @@ function AdminPage({ path, data, context }: { path: string; data: BootstrapData;
   };
   const reviewReport = (reportId: string, status: "reviewed" | "dismissed") =>
     void context.performAction({ type: "review-report", reportId, status });
-  return <div className="content-page admin-page"><PageHeading eyebrow="Trusted operations only" title="Administration." description="Review demo content and record moderation actions. This session was authenticated with a server-side admin key." action={<span className="secure-badge"><ShieldCheck size={14} /> Admin session</span>} /><nav className="admin-tabs" aria-label="Admin areas"><Link className={!isUsers && !isOpportunities ? "active" : ""} href="/admin">Overview</Link><Link className={isUsers ? "active" : ""} href="/admin/users">Users</Link><Link className={isOpportunities ? "active" : ""} href="/admin/opportunities">Opportunities</Link></nav>
+  const reviewVerification = (requestId: string, status: "verified" | "rejected" | "additional-information-required" | "expired") =>
+    void context.performAction({ type: "review-company-verification", requestId, status, note: reason });
+  return <div className="content-page admin-page"><PageHeading eyebrow="Trusted operations only" title="Administration." description="Review demo content and record moderation actions. This session was authenticated with a server-side admin key." action={<span className="secure-badge"><ShieldCheck size={14} /> Admin session</span>} /><nav className="admin-tabs" aria-label="Admin areas"><Link className={!isUsers && !isOpportunities && !isVerifications ? "active" : ""} href="/admin">Overview</Link><Link className={isUsers ? "active" : ""} href="/admin/users">Users</Link><Link className={isOpportunities ? "active" : ""} href="/admin/opportunities">Opportunities</Link><Link className={isVerifications ? "active" : ""} href="/admin/verifications">Verification</Link></nav>
     <label className="admin-reason">Moderation reason <input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={300} placeholder="Add a short reason for the audit record" /></label>
     {isUsers ? <section className="admin-section"><h2>Demo users <span className="count-chip">{users.length}</span></h2><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Profile</th><th>Role</th><th>Account state</th><th>Action</th></tr></thead><tbody>{users.map((user) => <tr key={user.id}><td><b>{user.name}</b><small>{user.email} · demo account</small></td><td>{roleNames[user.role]}</td><td><span className={`listing-status listing-${user.status}`}>{user.status}</span></td><td><button className="button button-light button-small" type="button" onClick={() => void userAction(user.id, user.status === "active" ? "disable" : "restore")}>{user.status === "active" ? "Disable" : "Restore"}</button></td></tr>)}</tbody></table></div></section>
       : isOpportunities ? <section className="admin-section"><h2>Opportunity moderation <span className="count-chip">{opportunities.length}</span></h2><div className="admin-list">{opportunities.map((opportunity) => <article className="publisher-list-row" key={opportunity.id}><span className="application-mark"><BriefcaseBusiness size={18} /></span><div className="publisher-list-copy"><b>{opportunity.title}</b><span>{opportunity.organization}</span><small>Publisher: {users.find((user) => user.id === opportunity.publisherId)?.name ?? "unknown"}</small></div><span className={`listing-status listing-${opportunity.status}`}>{opportunity.status}</span>{opportunity.status === "published" ? <button type="button" className="button button-light button-small" onClick={() => void opportunityAction(opportunity.id, "pause")}>Pause</button> : <button type="button" className="button button-soft button-small" onClick={() => void opportunityAction(opportunity.id, "publish")}>Publish</button>}<button type="button" className="text-button danger-text" onClick={() => void opportunityAction(opportunity.id, "reject")}>Reject</button></article>)}</div></section>
-        : <><div className="admin-metrics"><div><span>Profiles</span><strong>{users.length}</strong><small>fictional demo members</small></div><div><span>Listings</span><strong>{opportunities.length}</strong><small>sample and publisher-created</small></div><div><span>Applications</span><strong>{data.applications.length}</strong><small>linked demo records</small></div><div><span>Open reports</span><strong>{summary.reports.filter((report) => report.status === "open").length}</strong><small>trust and safety queue</small></div></div><div className="dashboard-grid"><section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">TRUST & SAFETY</p><h2>Open reports</h2></div></div>{summary.reports.filter((report) => report.status === "open").length ? summary.reports.filter((report) => report.status === "open").map((report) => <article className="contact-inbox-item" key={report.id}><b>{report.targetType} report · {report.reason}</b><p>{report.details || "No additional details were submitted."}</p><small>Reporter: {users.find((user) => user.id === report.reporterId)?.name ?? "demo profile"} · {new Date(report.createdAt).toLocaleString("en-IN")}</small><div className="session-card-actions"><button type="button" className="button button-dark button-small" onClick={() => reviewReport(report.id, "reviewed")}>Mark reviewed</button><button type="button" className="button button-light button-small" onClick={() => reviewReport(report.id, "dismissed")}>Dismiss</button></div></article>) : <p className="quiet-empty">No open reports. User-submitted reports are only visible to administrators.</p>}</section><section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">RECENT MODERATION</p><h2>Recorded actions</h2></div></div>{summary.moderationRecords.length ? summary.moderationRecords.slice(-5).reverse().map((record) => <div className="moderation-row" key={record.id}><b>{record.action} · {record.targetType}</b><span>{record.reason}</span><small>{new Date(record.createdAt).toLocaleString("en-IN")}</small></div>) : <p className="quiet-empty">No moderation actions yet. Each action will record its target, reason, actor, and timestamp.</p>}</section><section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">LOCAL CONTACT INBOX</p><h2>{summary.contactSubmissions.length} saved messages</h2></div><Link className="text-link" href="/contact">Contact form <ArrowRight size={14} /></Link></div>{summary.contactSubmissions.slice(-4).reverse().map((item) => <article className="contact-inbox-item" key={item.id}><b>{item.topic}</b><span>{item.name} · {item.email}</span><p>{item.message}</p><small>{new Date(item.createdAt).toLocaleString("en-IN")} · no email sent</small></article>)}</section></div><div className="admin-shortcuts"><Link className="button button-light" href="/admin/users">Review demo users <ArrowRight size={15} /></Link><Link className="button button-light" href="/admin/opportunities">Review listings <ArrowRight size={15} /></Link></div></>}
+        : isVerifications ? <section className="admin-section"><h2>Company identity verification <span className="count-chip">{summary.companyVerificationRequests.filter((request) => request.status === "pending-verification").length} pending</span></h2>
+          {summary.companyVerificationRequests.length ? <div className="admin-list">{summary.companyVerificationRequests.slice().sort((first, second) => second.submittedAt.localeCompare(first.submittedAt)).map((request) => {
+            const organization = summary.organizations.find((item) => item.id === request.organizationId);
+            const canReview = request.status === "pending-verification";
+            return organization ? <article className="verification-review-card" key={request.id}>
+              <div><span className={`verification-status status-${request.status}`}>{verificationStatusLabels[request.status]}</span><h3>{organization.name}</h3><p>{organization.type === "company" ? "Existing company" : "Startup"} · {organization.industry}</p><p>{organization.businessEmail}{organization.website ? ` · ${organization.website}` : ""}</p><p><b>{request.identifierType.toUpperCase()}:</b> {request.identifier}</p><p>{request.details || "No additional context submitted."}</p><small>Submitted by {users.find((user) => user.id === request.submittedBy)?.name ?? "organization representative"} · {new Date(request.submittedAt).toLocaleString("en-IN")}</small>
+                {request.reviewNote ? <div className="verification-review-note"><b>Previous review note</b><p>{request.reviewNote}</p></div> : null}
+                <div className="session-card-actions">{canReview ? <><button type="button" className="button button-dark button-small" onClick={() => reviewVerification(request.id, "verified")}>Approve</button><button type="button" className="button button-light button-small" onClick={() => reviewVerification(request.id, "rejected")}>Reject</button><button type="button" className="button button-light button-small" onClick={() => reviewVerification(request.id, "additional-information-required")}>Request information</button></> : null}{request.status === "verified" ? <button type="button" className="button button-light button-small" onClick={() => reviewVerification(request.id, "expired")}>Mark expired</button> : null}</div>
+              </div>
+            </article> : null;
+          })}</div> : <p className="quiet-empty">No organization verification requests have been submitted.</p>}
+          <section className="verification-audit-list"><h3>Verification audit history</h3>{summary.companyVerificationAudit.length ? summary.companyVerificationAudit.slice().reverse().map((entry) => <div className="moderation-row" key={entry.id}><b>{entry.action.replaceAll("-", " ")} · {summary.organizations.find((item) => item.id === entry.organizationId)?.name ?? "organization"}</b><span>{entry.note}</span><small>{new Date(entry.createdAt).toLocaleString("en-IN")}</small></div>) : <p className="quiet-empty">Review actions will appear here with their actor, timestamp, and note.</p>}</section>
+        </section>
+        : <><div className="admin-metrics"><div><span>Profiles</span><strong>{users.length}</strong><small>fictional demo members</small></div><div><span>Listings</span><strong>{opportunities.length}</strong><small>sample and publisher-created</small></div><div><span>Applications</span><strong>{data.applications.length}</strong><small>linked demo records</small></div><div><span>Open reports</span><strong>{summary.reports.filter((report) => report.status === "open").length}</strong><small>trust and safety queue</small></div><div><span>Pending verification</span><strong>{summary.companyVerificationRequests.filter((request) => request.status === "pending-verification").length}</strong><small>manual administrator review</small></div></div><div className="dashboard-grid"><section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">TRUST & SAFETY</p><h2>Open reports</h2></div></div>{summary.reports.filter((report) => report.status === "open").length ? summary.reports.filter((report) => report.status === "open").map((report) => <article className="contact-inbox-item" key={report.id}><b>{report.targetType} report · {report.reason}</b><p>{report.details || "No additional details were submitted."}</p><small>Reporter: {users.find((user) => user.id === report.reporterId)?.name ?? "demo profile"} · {new Date(report.createdAt).toLocaleString("en-IN")}</small><div className="session-card-actions"><button type="button" className="button button-dark button-small" onClick={() => reviewReport(report.id, "reviewed")}>Mark reviewed</button><button type="button" className="button button-light button-small" onClick={() => reviewReport(report.id, "dismissed")}>Dismiss</button></div></article>) : <p className="quiet-empty">No open reports. User-submitted reports are only visible to administrators.</p>}</section><section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">RECENT MODERATION</p><h2>Recorded actions</h2></div></div>{summary.moderationRecords.length ? summary.moderationRecords.slice(-5).reverse().map((record) => <div className="moderation-row" key={record.id}><b>{record.action} · {record.targetType}</b><span>{record.reason}</span><small>{new Date(record.createdAt).toLocaleString("en-IN")}</small></div>) : <p className="quiet-empty">No moderation actions yet. Each action will record its target, reason, actor, and timestamp.</p>}</section><section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">LOCAL CONTACT INBOX</p><h2>{summary.contactSubmissions.length} saved messages</h2></div><Link className="text-link" href="/contact">Contact form <ArrowRight size={14} /></Link></div>{summary.contactSubmissions.slice(-4).reverse().map((item) => <article className="contact-inbox-item" key={item.id}><b>{item.topic}</b><span>{item.name} · {item.email}</span><p>{item.message}</p><small>{new Date(item.createdAt).toLocaleString("en-IN")} · no email sent</small></article>)}</section></div><div className="admin-shortcuts"><Link className="button button-light" href="/admin/users">Review demo users <ArrowRight size={15} /></Link><Link className="button button-light" href="/admin/opportunities">Review listings <ArrowRight size={15} /></Link><Link className="button button-light" href="/admin/verifications">Review verification <ArrowRight size={15} /></Link></div></>}
     <div className="audit-note"><ShieldCheck size={18} /><p>Every moderation action requires this verified admin session and a reason. Role selection in the public demo cannot elevate permissions.</p></div>
   </div>;
 }

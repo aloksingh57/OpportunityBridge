@@ -2,6 +2,7 @@ export const roles = [
   "student",
   "job-seeker",
   "founder",
+  "existing-company",
   "investor",
   "mentor",
   "advisor",
@@ -33,6 +34,16 @@ export type ApplicationStatus =
   | "rejected"
   | "withdrawn";
 export type ConnectionStatus = "pending" | "accepted" | "declined" | "cancelled";
+export type OrganizationType = "startup" | "company";
+export type OrganizationMemberRole = "owner" | "administrator" | "recruiter" | "authorized-representative" | "read-only";
+export type CompanyVerificationStatus =
+  | "not-submitted"
+  | "pending-verification"
+  | "verified"
+  | "rejected"
+  | "additional-information-required"
+  | "expired";
+export type RegistrationIdentifierType = "cin" | "llpin" | "gstin" | "dpiit" | "other";
 
 export interface UserProfile {
   id: string;
@@ -214,6 +225,52 @@ export interface StartupProfile {
   isDemo: true;
 }
 
+export interface Organization {
+  id: string;
+  ownerId: string;
+  type: OrganizationType;
+  name: string;
+  industry: string;
+  businessEmail: string;
+  website: string;
+  createdAt: string;
+  updatedAt: string;
+  isDemo: true;
+}
+
+export interface OrganizationMember {
+  id: string;
+  organizationId: string;
+  userId: string;
+  role: OrganizationMemberRole;
+  createdAt: string;
+}
+
+export interface CompanyVerificationRequest {
+  id: string;
+  organizationId: string;
+  submittedBy: string;
+  identifierType: RegistrationIdentifierType;
+  identifier: string;
+  details: string;
+  status: Exclude<CompanyVerificationStatus, "not-submitted">;
+  reviewNote: string;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  submittedAt: string;
+  updatedAt: string;
+}
+
+export interface CompanyVerificationAudit {
+  id: string;
+  organizationId: string;
+  requestId: string;
+  actorId: string;
+  action: "submitted" | "resubmitted" | "verified" | "rejected" | "additional-information-required" | "expired";
+  note: string;
+  createdAt: string;
+}
+
 export interface OpportunityBridgeStore {
   version: 1;
   users: UserProfile[];
@@ -233,6 +290,10 @@ export interface OpportunityBridgeStore {
   reports: ContentReport[];
   startups: StartupProfile[];
   sessionDocuments: SessionDocument[];
+  organizations: Organization[];
+  organizationMembers: OrganizationMember[];
+  companyVerificationRequests: CompanyVerificationRequest[];
+  companyVerificationAudit: CompanyVerificationAudit[];
 }
 
 export type PublicUser = Omit<UserProfile, "email" | "status">;
@@ -259,6 +320,10 @@ export interface BootstrapData {
   blockedProfileIds: string[];
   blockedProfiles: PublicUser[];
   startups: Array<StartupProfile & { founder: PublicUser }>;
+  organization: (Organization & {
+    verificationStatus: CompanyVerificationStatus;
+    verificationRequest: CompanyVerificationRequest | null;
+  }) | null;
   metrics: {
     applications: number;
     savedOpportunities: number;
@@ -274,5 +339,8 @@ export interface BootstrapData {
     moderationRecords: ModerationRecord[];
     contactSubmissions: ContactSubmission[];
     reports: ContentReport[];
+    organizations: Organization[];
+    companyVerificationRequests: CompanyVerificationRequest[];
+    companyVerificationAudit: CompanyVerificationAudit[];
   };
 }

@@ -1,5 +1,6 @@
 import { getActor } from "@/lib/auth";
 import { readStore } from "@/lib/store";
+import { latestVerificationRequest, verificationStatus } from "@/lib/company-verification";
 import type { BootstrapData, PublicUser, UserProfile } from "@/types/opportunity-bridge";
 
 export function toPublicUser(user: UserProfile): PublicUser {
@@ -13,6 +14,16 @@ export async function getBootstrap(cookieHeader?: string): Promise<BootstrapData
   const [actor, store] = await Promise.all([getActor(cookieHeader), readStore()]);
   const currentUserRecord = actor && !actor.isAdmin ? store.users.find((user) => user.id === actor.id) ?? null : null;
   const currentUser = currentUserRecord ? toPublicUser(currentUserRecord) : null;
+  const currentOrganization = currentUserRecord
+    ? store.organizations.find((organization) =>
+        store.organizationMembers.some((member) =>
+          member.organizationId === organization.id && member.userId === currentUserRecord.id,
+        ),
+      ) ?? null
+    : null;
+  const ownVerificationRequest = currentOrganization
+    ? latestVerificationRequest(store.companyVerificationRequests, currentOrganization.id)
+    : null;
   const blockedUserIds = actor
     ? new Set(store.userBlocks.flatMap((block) => {
         if (block.blockerId === actor.id) return [block.blockedUserId];
@@ -132,6 +143,13 @@ export async function getBootstrap(cookieHeader?: string): Promise<BootstrapData
     conversations,
     mentoringSessions,
     startups,
+    organization: currentOrganization
+      ? {
+          ...currentOrganization,
+          verificationStatus: verificationStatus(store.companyVerificationRequests, currentOrganization.id),
+          verificationRequest: ownVerificationRequest,
+        }
+      : null,
     notifications: userNotifications,
     savedOpportunityIds: userOpportunities.map((saved) => saved.opportunityId),
     savedProfileIds: userSavedProfiles.map((saved) => saved.savedProfileId),
@@ -158,6 +176,9 @@ export async function getBootstrap(cookieHeader?: string): Promise<BootstrapData
         moderationRecords: store.moderationRecords,
         contactSubmissions: store.contactSubmissions,
         reports: store.reports,
+        organizations: store.organizations,
+        companyVerificationRequests: store.companyVerificationRequests,
+        companyVerificationAudit: store.companyVerificationAudit,
       },
     } : {}),
   };

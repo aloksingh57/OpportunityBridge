@@ -23,7 +23,8 @@ type AuthPayload = {
 const roleLabels: Record<Role, string> = {
   student: "Student",
   "job-seeker": "Job seeker",
-  founder: "Founder",
+  founder: "Startup founder",
+  "existing-company": "Existing company",
   investor: "Investor",
   mentor: "Mentor",
   advisor: "Advisor",

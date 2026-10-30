@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidRegistrationIdentifier } from "@/lib/company-verification";
 import { roles } from "@/types/opportunity-bridge";
 
 const opportunityTypes = [
@@ -169,6 +170,48 @@ export const OpportunityBridgeStoreSchema = z.object({
     fundingAskInr: z.number().nonnegative().nullable(),
     isDemo: z.literal(true),
   })).default([]),
+  organizations: z.array(z.object({
+    id: z.string(),
+    ownerId: z.string(),
+    type: z.enum(["startup", "company"]),
+    name: z.string().min(2).max(120),
+    industry: z.string().min(2).max(80),
+    businessEmail: z.string().email().max(150),
+    website: z.string().max(200),
+    createdAt: timestampSchema,
+    updatedAt: timestampSchema,
+    isDemo: z.literal(true),
+  })).default([]),
+  organizationMembers: z.array(z.object({
+    id: z.string(),
+    organizationId: z.string(),
+    userId: z.string(),
+    role: z.enum(["owner", "administrator", "recruiter", "authorized-representative", "read-only"]),
+    createdAt: timestampSchema,
+  })).default([]),
+  companyVerificationRequests: z.array(z.object({
+    id: z.string(),
+    organizationId: z.string(),
+    submittedBy: z.string(),
+    identifierType: z.enum(["cin", "llpin", "gstin", "dpiit", "other"]),
+    identifier: z.string().min(1).max(100),
+    details: z.string().max(1000),
+    status: z.enum(["pending-verification", "verified", "rejected", "additional-information-required", "expired"]),
+    reviewNote: z.string().max(500),
+    reviewedBy: z.string().nullable(),
+    reviewedAt: timestampSchema.nullable(),
+    submittedAt: timestampSchema,
+    updatedAt: timestampSchema,
+  })).default([]),
+  companyVerificationAudit: z.array(z.object({
+    id: z.string(),
+    organizationId: z.string(),
+    requestId: z.string(),
+    actorId: z.string(),
+    action: z.enum(["submitted", "resubmitted", "verified", "rejected", "additional-information-required", "expired"]),
+    note: z.string().max(500),
+    createdAt: timestampSchema,
+  })).default([]),
   sessionDocuments: z.array(z.object({
     id: z.string(),
     sessionId: z.string(),
@@ -191,6 +234,34 @@ export const RegisterSchema = z.object({
   roles: z.array(z.enum(roles)).min(1).max(roles.length).optional(),
   location: z.string().trim().min(2).max(100),
   skills: z.array(z.string().trim().min(1).max(40)).max(12),
+  organizationName: z.string().trim().max(120).optional().default(""),
+  industry: z.string().trim().max(80).optional().default(""),
+  businessEmail: z.string().trim().email().max(150).optional().or(z.literal("")).default(""),
+  website: z.string().trim().max(200).optional().default(""),
+  identifierType: z.enum(["cin", "llpin", "gstin", "dpiit", "other"]).optional(),
+  identifier: z.string().trim().max(100).optional().default(""),
+  verificationDetails: z.string().trim().max(1000).optional().default(""),
+}).superRefine((registration, context) => {
+  const isOrganizationRole = registration.role === "founder" || registration.role === "existing-company";
+  if (isOrganizationRole && registration.organizationName.length < 2) {
+    context.addIssue({ code: "custom", path: ["organizationName"], message: "Enter your organization name." });
+  }
+  if (isOrganizationRole && registration.industry.length < 2) {
+    context.addIssue({ code: "custom", path: ["industry"], message: "Enter your organization industry." });
+  }
+  if (registration.website && !z.string().url().safeParse(registration.website).success) {
+    context.addIssue({ code: "custom", path: ["website"], message: "Enter a complete website URL, including https://." });
+  }
+  if (Boolean(registration.identifierType) !== Boolean(registration.identifier)) {
+    context.addIssue({ code: "custom", path: ["identifier"], message: "Provide both an identifier type and identifier, or leave both blank." });
+  }
+  if (registration.identifierType && registration.identifier
+    && !isValidRegistrationIdentifier(registration.identifierType, registration.identifier)) {
+    context.addIssue({ code: "custom", path: ["identifier"], message: "The identifier does not match the selected format. Format checks do not verify identity." });
+  }
+  if (registration.identifier && !isOrganizationRole) {
+    context.addIssue({ code: "custom", path: ["identifier"], message: "Only an organization profile can submit a company identifier." });
+  }
 });
 
 const boundedString = (maximum: number) => z.string().trim().min(1).max(maximum);
@@ -230,6 +301,22 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("review-report"), reportId: boundedString(80), status: z.enum(["reviewed", "dismissed"]) }),
   z.object({ type: z.literal("moderate-opportunity"), opportunityId: boundedString(80), action: z.enum(["pause", "publish", "reject"]), reason: boundedString(300) }),
   z.object({ type: z.literal("moderate-user"), userId: boundedString(80), action: z.enum(["disable", "restore"]), reason: boundedString(300) }),
+  z.object({
+    type: z.literal("submit-company-verification"),
+    organizationName: boundedString(120),
+    industry: boundedString(80),
+    businessEmail: z.string().trim().email().max(150),
+    website: z.string().trim().max(200).default("").refine((value) => !value || z.url().safeParse(value).success, "Enter a valid website URL."),
+    identifierType: z.enum(["cin", "llpin", "gstin", "dpiit", "other"]),
+    identifier: boundedString(100),
+    details: z.string().trim().max(1000).default(""),
+  }),
+  z.object({
+    type: z.literal("review-company-verification"),
+    requestId: boundedString(80),
+    status: z.enum(["verified", "rejected", "additional-information-required", "expired"]),
+    note: z.string().trim().max(500).default(""),
+  }),
 ]);
 
 export type OpportunityAction = z.infer<typeof ActionSchema>;

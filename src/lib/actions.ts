@@ -1,5 +1,6 @@
 import { newId, updateStore } from "@/lib/store";
 import { canTransitionApplication } from "@/lib/recommendations";
+import { canTransitionVerification, isValidRegistrationIdentifier, latestVerificationRequest, normalizeRegistrationIdentifier } from "@/lib/company-verification";
 import type { OpportunityAction } from "@/lib/validation";
 import type {
   ActorRole,
@@ -442,10 +443,143 @@ export async function runAction(
         });
         return { message: `Report ${action.status}.` };
       }
+      case "submit-company-verification": {
+        if (!currentUser) throw new ActionError("Sign in with an organization profile to submit verification.", 401);
+        const organizationType = currentUser.roles.includes("existing-company")
+          ? "company"
+          : currentUser.roles.includes("founder")
+            ? "startup"
+            : null;
+        if (!organizationType) throw new ActionError("Only startup founders and existing-company profiles can submit organization verification.", 403);
+        if (!isValidRegistrationIdentifier(action.identifierType, action.identifier)) {
+          throw new ActionError("That identifier does not match the selected identifier format. Format checks do not verify identity.", 400);
+        }
+        let organization = store.organizations.find((item) =>
+          store.organizationMembers.some((member) =>
+            member.organizationId === item.id
+            && member.userId === currentUser.id
+            && ["owner", "administrator", "authorized-representative"].includes(member.role),
+          ),
+        );
+        if (organization && organization.type !== organizationType) {
+          throw new ActionError("Your organization role does not match this verification request.", 403);
+        }
+        if (!organization) {
+          const organizationId = newId("organization");
+          organization = {
+            id: organizationId,
+            ownerId: currentUser.id,
+            type: organizationType,
+            name: action.organizationName,
+            industry: action.industry,
+            businessEmail: action.businessEmail,
+            website: action.website,
+            createdAt: now,
+            updatedAt: now,
+            isDemo: true,
+          };
+          store.organizations.push(organization);
+          store.organizationMembers.push({
+            id: newId("organization-member"),
+            organizationId,
+            userId: currentUser.id,
+            role: "owner",
+            createdAt: now,
+          });
+        }
+        const previousRequest = latestVerificationRequest(store.companyVerificationRequests, organization.id);
+        if (previousRequest?.status === "pending-verification") {
+          throw new ActionError("Your organization already has a request pending review.", 409);
+        }
+        if (previousRequest?.status === "verified") {
+          throw new ActionError("This organization is already verified. Contact an administrator if its details need to change.", 409);
+        }
+        organization.name = action.organizationName;
+        organization.industry = action.industry;
+        organization.businessEmail = action.businessEmail;
+        organization.website = action.website;
+        organization.updatedAt = now;
+        const requestId = newId("verification");
+        store.companyVerificationRequests.push({
+          id: requestId,
+          organizationId: organization.id,
+          submittedBy: currentUser.id,
+          identifierType: action.identifierType,
+          identifier: normalizeRegistrationIdentifier(action.identifier),
+          details: action.details,
+          status: "pending-verification",
+          reviewNote: "",
+          reviewedBy: null,
+          reviewedAt: null,
+          submittedAt: now,
+          updatedAt: now,
+        });
+        store.companyVerificationAudit.push({
+          id: newId("verification-audit"),
+          organizationId: organization.id,
+          requestId,
+          actorId: currentUser.id,
+          action: previousRequest ? "resubmitted" : "submitted",
+          note: previousRequest ? "Updated verification information submitted." : "Verification request submitted.",
+          createdAt: now,
+        });
+        addNotification(store, currentUser.id, "system", "Verification request submitted", "Your organization is pending manual verification. Identifier-format checks are not proof of identity.", "/company-verification");
+        return { message: "Your verification request was submitted for manual administrator review." };
+      }
+      case "review-company-verification": {
+        if (!actor.isAdmin) throw new ActionError("Administrator access is required.", 403);
+        const request = store.companyVerificationRequests.find((item) => item.id === action.requestId);
+        if (!request) throw new ActionError("That verification request could not be found.", 404);
+        if (!canTransitionVerification(request.status, action.status)) {
+          throw new ActionError("This verification request can no longer be changed to that status.", 409);
+        }
+        if (action.status !== "verified" && action.note.length < 5) {
+          throw new ActionError("Add a review note so the organization and audit history explain this decision.", 400);
+        }
+        const organization = store.organizations.find((item) => item.id === request.organizationId);
+        if (!organization) throw new ActionError("The organization linked to this request could not be found.", 404);
+        request.status = action.status;
+        request.reviewNote = action.note;
+        request.reviewedBy = actor.id;
+        request.reviewedAt = now;
+        request.updatedAt = now;
+        store.companyVerificationAudit.push({
+          id: newId("verification-audit"),
+          organizationId: organization.id,
+          requestId: request.id,
+          actorId: actor.id,
+          action: action.status,
+          note: action.note,
+          createdAt: now,
+        });
+        addNotification(
+          store,
+          organization.ownerId,
+          "system",
+          `Company verification ${action.status.replaceAll("-", " ")}`,
+          action.note || "An administrator reviewed your organization verification request.",
+          "/company-verification",
+        );
+        return { message: `Verification status updated to ${action.status.replaceAll("-", " ")}.` };
+      }
       case "moderate-opportunity": {
         if (!actor.isAdmin) throw new ActionError("Administrator access is required.", 403);
         const opportunity = store.opportunities.find((item) => item.id === action.opportunityId);
         if (!opportunity) throw new ActionError("That opportunity could not be found.", 404);
+        if (action.action === "publish") {
+          const publisher = store.users.find((item) => item.id === opportunity.publisherId);
+          const organization = store.organizations.find((item) =>
+            store.organizationMembers.some((member) =>
+              member.organizationId === item.id && member.userId === opportunity.publisherId,
+            ),
+          );
+          const latestRequest = organization ? latestVerificationRequest(store.companyVerificationRequests, organization.id) : null;
+          const requiresVerification = publisher?.roles.includes("existing-company")
+            || (organization?.type === "startup" && ["internship", "full-time", "part-time"].includes(opportunity.type));
+          if (requiresVerification && latestRequest?.status !== "verified") {
+            throw new ActionError("Manual organization verification is required before this opportunity can be published.", 403);
+          }
+        }
         opportunity.status = action.action === "publish" ? "published" : action.action === "pause" ? "paused" : "rejected";
         store.moderationRecords.push({
           id: newId("moderation"),

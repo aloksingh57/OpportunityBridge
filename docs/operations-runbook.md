@@ -10,11 +10,17 @@
 
 1. Create or select the intended Supabase project and confirm its owner/environment before applying schema changes.
 2. The supplied `https://coprssazioohgynkquio.supabase.co` project URL is the default. Set `SUPABASE_PUBLISHABLE_KEY` from that project's API settings in the server environment; a legacy `SUPABASE_ANON_KEY` is accepted as an alternative. A valid public key is required. The application does not use a service-role key.
-3. Review and apply `supabase/migrations/20260617000000_create_authenticated_profiles.sql` to the intended project through its reviewed migration workflow. It creates the profile table, self-read RLS policy, and new-auth-user trigger; it does not migrate demo opportunities, applications, messages, or other records.
+3. Review and apply `supabase/migrations/20260617000000_create_authenticated_profiles.sql` followed by `supabase/migrations/20261030000000_add_existing_company_role.sql` to the intended project through its reviewed migration workflow. These migrations create the self-read profile table and allow the additional `existing-company` role; they do not migrate demo opportunities, organizations, verification requests, applications, messages, or other workflow records.
 4. Configure the Supabase Auth site URL, allowed redirect URL, email-confirmation policy, and a production SMTP provider. Test creation, email verification, sign-in, sign-out, and session expiry with isolated test accounts.
 5. Verify `/api/health/ready` still reports `productionReady: false`. Authentication does not unlock demo-backed product workflows.
 
 Registration does not accept a requested role. The database trigger assigns new users the `student` role; privileged or trust-sensitive role assignment requires a separate verified server-side workflow.
+
+## Demo company verification
+
+The local demo includes a manual Company Identity Verification flow at `/company-verification` and a restricted review queue at `/admin/verifications`. Only the organization owner/member can see its submitted identifier, and only the server-configured admin session can review it. CIN/LLPIN/GSTIN and other identifier checks are format checks—not identity verification. Approval must be a deliberate administrator action. Rejections and additional-information requests can be resubmitted, and each state change is recorded in the demo audit collection.
+
+The workflow does not provide private evidence-file upload or a production database adapter. Do not enter real organization identifiers or supporting documents, and do not treat demo approval or a demo badge as real-world verification. Production rollout requires a reviewed relational schema with organization-level RLS and audit constraints, private evidence storage, verified moderator identities, and integration tests.
 
 ## Start and verify a local demo
 

@@ -1,5 +1,6 @@
 import { createSessionValue, setSessionCookie } from "@/lib/auth";
 import { newId, updateStore } from "@/lib/store";
+import { normalizeRegistrationIdentifier } from "@/lib/company-verification";
 import { RegisterSchema } from "@/lib/validation";
 import type { UserProfile } from "@/types/opportunity-bridge";
 
@@ -37,6 +38,55 @@ export async function POST(request: Request) {
         status: "active",
       };
       store.users.push(profile);
+      if (parsed.data.role === "founder" || parsed.data.role === "existing-company") {
+        const now = new Date().toISOString();
+        const organizationId = newId("organization");
+        store.organizations.push({
+          id: organizationId,
+          ownerId: profile.id,
+          type: parsed.data.role === "founder" ? "startup" : "company",
+          name: parsed.data.organizationName,
+          industry: parsed.data.industry,
+          businessEmail: parsed.data.businessEmail || normalizedEmail,
+          website: parsed.data.website,
+          createdAt: now,
+          updatedAt: now,
+          isDemo: true,
+        });
+        store.organizationMembers.push({
+          id: newId("organization-member"),
+          organizationId,
+          userId: profile.id,
+          role: "owner",
+          createdAt: now,
+        });
+        if (parsed.data.identifierType && parsed.data.identifier) {
+          const requestId = newId("verification");
+          store.companyVerificationRequests.push({
+            id: requestId,
+            organizationId,
+            submittedBy: profile.id,
+            identifierType: parsed.data.identifierType,
+            identifier: normalizeRegistrationIdentifier(parsed.data.identifier),
+            details: parsed.data.verificationDetails,
+            status: "pending-verification",
+            reviewNote: "",
+            reviewedBy: null,
+            reviewedAt: null,
+            submittedAt: now,
+            updatedAt: now,
+          });
+          store.companyVerificationAudit.push({
+            id: newId("verification-audit"),
+            organizationId,
+            requestId,
+            actorId: profile.id,
+            action: "submitted",
+            note: "Verification request submitted during profile registration.",
+            createdAt: now,
+          });
+        }
+      }
       return profile;
     });
     await setSessionCookie(createSessionValue(user.id));

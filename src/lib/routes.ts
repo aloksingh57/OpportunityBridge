@@ -23,9 +23,11 @@ const exactRoutes = new Set([
   "/manage-applicants",
   "/recommendations",
   "/sessions",
+  "/company-verification",
   "/admin",
   "/admin/users",
   "/admin/opportunities",
+  "/admin/verifications",
 ]);
 
 export function isKnownRoute(path: string): boolean {
@@ -51,5 +53,6 @@ export function isProtectedRoute(path: string): boolean {
     "/manage-applicants",
     "/recommendations",
     "/sessions",
+    "/company-verification",
   ].some((route) => path === route || path.startsWith(`${route}/`));
 }

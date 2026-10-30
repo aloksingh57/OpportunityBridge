@@ -166,7 +166,13 @@ export const seedStore: OpportunityBridgeStore = {
   version: 1,
   users: personas.map((person) => ({
     ...person,
-    roles: person.id === "founder-kabir" ? ["founder", "mentor"] : person.id === "advisor-vikram" ? ["advisor", "mentor"] : [person.role],
+    roles: person.id === "founder-kabir"
+      ? ["founder", "mentor"]
+      : person.id === "advisor-vikram"
+        ? ["advisor", "mentor"]
+        : person.id === "recruiter-sara"
+          ? ["recruiter", "existing-company"]
+          : [person.role],
     isDemo: true,
     status: "active",
   })),
@@ -198,6 +204,20 @@ export const seedStore: OpportunityBridgeStore = {
     { id: "startup-skillspring", founderId: "founder-isha", name: "SkillSpring", industry: "Education & future of work", stage: "seed", summary: "A fictional learning platform pairing practical project work with accessible career guidance.", fundingAskInr: 8000000, isDemo: true },
     { id: "startup-circulab", founderId: "founder-aman", name: "CircuLab", industry: "Climate & small business", stage: "idea", summary: "A fictional early concept exploring more resilient supply chains for independent businesses.", fundingAskInr: null, isDemo: true },
   ],
+  organizations: [
+    { id: "org-greencart", ownerId: "founder-kabir", type: "startup", name: "GreenCart", industry: "Climate & commerce", businessEmail: "kabir@example.demo", website: "", createdAt: pastDays(30), updatedAt: pastDays(30), isDemo: true },
+    { id: "org-skillspring", ownerId: "founder-isha", type: "startup", name: "SkillSpring", industry: "Education & future of work", businessEmail: "isha@example.demo", website: "", createdAt: pastDays(30), updatedAt: pastDays(30), isDemo: true },
+    { id: "org-circulab", ownerId: "founder-aman", type: "startup", name: "CircuLab", industry: "Climate & small business", businessEmail: "aman@example.demo", website: "", createdAt: pastDays(30), updatedAt: pastDays(30), isDemo: true },
+    { id: "org-pixelnest", ownerId: "recruiter-sara", type: "company", name: "PixelNest Labs", industry: "Product design & software", businessEmail: "sara@example.demo", website: "", createdAt: pastDays(30), updatedAt: pastDays(30), isDemo: true },
+  ],
+  organizationMembers: [
+    { id: "org-member-greencart-owner", organizationId: "org-greencart", userId: "founder-kabir", role: "owner", createdAt: pastDays(30) },
+    { id: "org-member-skillspring-owner", organizationId: "org-skillspring", userId: "founder-isha", role: "owner", createdAt: pastDays(30) },
+    { id: "org-member-circulab-owner", organizationId: "org-circulab", userId: "founder-aman", role: "owner", createdAt: pastDays(30) },
+    { id: "org-member-pixelnest-owner", organizationId: "org-pixelnest", userId: "recruiter-sara", role: "owner", createdAt: pastDays(30) },
+  ],
+  companyVerificationRequests: [],
+  companyVerificationAudit: [],
 };
 
 export const demoPersonas: Array<{ id: string; label: string; role: Role }> = personas.map(({ id, name, role }) => ({

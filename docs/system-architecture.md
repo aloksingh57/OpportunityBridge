@@ -20,6 +20,12 @@ Server Components   Route Handlers + proxy
 
 The application uses Next.js 16 App Router, React, TypeScript, Route Handlers, Zod, and Supabase SSR. Server Components load request-scoped data; sensitive demo API responses use `private, no-store`. The proxy adds correlation IDs and blocks demo APIs in production by default. Demo workflow data and PDF files are local disk resources, not shared cloud storage.
 
+## Organization verification workflow
+
+The local demo adapter stores organizations, owner memberships, verification requests, and an append-only verification audit list in `.data/opportunitybridge.json`. Startup founders and existing-company profiles can submit one jurisdiction-appropriate identifier (CIN, LLPIN, GSTIN, DPIIT, or another supported identifier). Validation checks shape only. A server-key-protected administrator must explicitly approve, reject, request additional information, or expire a verified request. Rejected and information-requested organizations can resubmit; requests and audit entries remain in the local demo store. Verification IDs are returned only to an authorized organization member or the admin bootstrap. Existing-company listings and startup job/internship listings require a verified request on the backend.
+
+This is not a production verification service. There is no evidence-document upload for company verification, organization-member management UI, external verification provider, relational schema, or cross-instance persistence. Seeded organizations are fictional and unverified. Do not enter real identifiers or documents into a publicly hosted demo. The Supabase role migration permits the additional existing-company profile role but does not migrate organization verification records or enable production workflows.
+
 ## Platform and operational readiness
 
 | Area | Present in this project | Required before production |

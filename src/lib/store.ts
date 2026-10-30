@@ -32,7 +32,18 @@ export async function readStore(): Promise<OpportunityBridgeStore> {
     const legacyUsers = isRecord(original) && Array.isArray(original.users) ? original.users : [];
     const hasLegacyProfiles = legacyUsers.some((user) => isRecord(user) && !Array.isArray(user.roles));
     const hasLegacyCollections = !isRecord(original)
-      || !["applicationStatusHistory", "mentoringSessions", "userBlocks", "reports", "startups", "sessionDocuments"].every((field) => Array.isArray(original[field]));
+      || ![
+        "applicationStatusHistory",
+        "mentoringSessions",
+        "userBlocks",
+        "reports",
+        "startups",
+        "sessionDocuments",
+        "organizations",
+        "organizationMembers",
+        "companyVerificationRequests",
+        "companyVerificationAudit",
+      ].every((field) => Array.isArray(original[field]));
     if (isRecord(original) && !Array.isArray(original.applicationStatusHistory)) {
       parsed.data.applicationStatusHistory = migrateApplicationStatusHistory(parsed.data.applications);
     }

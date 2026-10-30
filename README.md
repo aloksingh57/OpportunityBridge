@@ -39,6 +39,8 @@ npm run build
 npm start
 ```
 
+GitHub Actions runs the same dependency install, lint, type-check, unit tests, and production build on Node.js 22 and 24 for every push and pull request. The workflow is `.github/workflows/ci.yml`; a green local run does not replace checking the remote Actions result after pushing.
+
 `npm start` serves the most recent production build. Set a fresh `AUTH_SECRET` in `.env.local` before testing production mode:
 
 ```powershell
@@ -76,6 +78,8 @@ The `/dashboard` overview follows the selected demo identity and uses real relat
 
 Dashboard counts are derived from the signed-in demo profile's visible records. These panels do not imply live hiring, investment activity, calendar bookings, or real-world outcomes.
 
+The demo has separate **Startup founder** and **Existing company** roles (alongside the legacy recruiter role). Startup and company registrations can create an organization profile. The Company Identity Verification flow checks identifier formatting only and always requires administrator review; it never grants verification automatically. Pending organizations can continue using their profile, while existing-company listings and startup job/internship postings are blocked until reviewed as verified. The existing-company dashboard has its own recruitment, talent-discovery, partnership-discovery, and verification panels. All seeded organizations remain unverified fictional examples.
+
 ## Included workflows
 
 | Area | Routes | Included behavior |
@@ -83,12 +87,13 @@ Dashboard counts are derived from the signed-in demo profile's visible records. 
 | Public discovery | `/`, `/about`, `/how-it-works`, `/contact`, `/startups` | Product introduction, demo-data disclosure, startup discovery filters, validated local contact inbox |
 | Marketplace | `/opportunities`, `/opportunities/[id]` | Live search, combined filters, sorting, grid/list mode, load-more, details, related listings, save/unsave, application form |
 | People | `/people`, `/people/[id]` | Role, skill, interest, and location discovery; multiple roles per account; profile saves; connection requests; report and block controls |
-| Demo identity | `/login`, `/register`, `/forgot-password`, `/onboarding` | Switch among fictional roles, create a local demo profile with multiple role memberships, first-run guidance |
+| Demo identity | `/login`, `/register`, `/forgot-password`, `/onboarding` | Switch among fictional roles, create a local demo profile with multiple role memberships, role-specific startup/existing-company setup |
 | Member space | `/dashboard`, `/profile`, `/settings`, `/saved` | Role-aware dashboard, derived metrics, editable public profile, persisted saved opportunities and profiles |
 | Applications | `/applications`, `/applications/[id]`, `/publish`, `/manage-opportunities`, `/manage-applicants` | Apply once before the deadline, publisher review, legal status transitions, private publisher notes, status notifications |
 | Network & guidance | `/connections`, `/messages`, `/sessions`, `/notifications` | Connection state transitions, participant-only messages, mentoring/advisory/CV/pitch sessions, private PDF review uploads, notifications |
+| Company verification | `/company-verification`, `/admin/verifications` | Submit CIN, LLPIN, GSTIN, DPIIT, or another supported identifier; manual admin review, rejection/additional-information/resubmission/expiry states, audit history, owner-only organization details, and backend gating for official listings |
 | Recommendations | `/recommendations` | Deterministic 0–100 discovery estimate with grounded reasons and documented factor weights |
-| Administration | `/admin`, `/admin/users`, `/admin/opportunities` | Optional separate server-key session, user/listing moderation, and timestamped audit records |
+| Administration | `/admin`, `/admin/users`, `/admin/opportunities`, `/admin/verifications` | Optional separate server-key session, user/listing moderation, company verification review, and timestamped audit records |
 
 ## Demo data and persistence
 
@@ -120,9 +125,11 @@ Applications now include a persisted demo status timeline for submission and lat
 | `SUPABASE_PUBLISHABLE_KEY` | Preferred Supabase public API key; only used server-side |
 | `SUPABASE_ANON_KEY` | Legacy alternative to `SUPABASE_PUBLISHABLE_KEY`; do not use a service-role key |
 
-Local development continues to use clearly labelled demo identity switching. When Supabase is configured in production, `/login` and `/register` use Supabase Auth; new profiles begin with the least-privileged `student` role assigned by the database trigger, and row-level security limits profile reads to their owner. This slice does not enable production opportunity/community workflows, password recovery, verified role assignment, or production readiness. Apply `supabase/migrations/20260617000000_create_authenticated_profiles.sql` to the intended Supabase project before enabling the sign-in routes. Configure the project's site URL, email-confirmation policy, and a production email sender separately.
+Local development continues to use clearly labelled demo identity switching. When Supabase is configured in production, `/login` and `/register` use Supabase Auth; new profiles begin with the least-privileged `student` role assigned by the database trigger, and row-level security limits profile reads to their owner. This slice does not enable production opportunity/community workflows, password recovery, verified role assignment, or production readiness. Review and apply `supabase/migrations/20260617000000_create_authenticated_profiles.sql` followed by `supabase/migrations/20261030000000_add_existing_company_role.sql` to the intended Supabase project before enabling the sign-in routes. Configure the project's site URL, email-confirmation policy, and a production email sender separately.
 
 Server-side Zod schemas validate API inputs. HMAC-signed, `HttpOnly`, `SameSite=Lax` session cookies identify a chosen demo persona. Ownership and role checks run in route/domain logic—not just in the UI. Per-account process-local limits protect actions (120/minute), private PDF uploads (10/hour), and downloads (60/minute); these are demo safeguards, not distributed production rate limits. Applicant notes are excluded from applicant responses; publisher-only notes are shown only to the listing owner or authorized admin. Mentoring requests enforce provider roles and valid state transitions. Uploaded PDF documents are private to the requester until a provider accepts the review session; downloads verify the current session relationship on every request. Reports are owner-private and admin-visible; blocks suppress profiles and prevent messaging/session access. Admin actions and report review decisions are recorded with actor, target, reason, and timestamp. User-submitted profile and message text is rendered as text, not injected HTML. API requests receive correlation IDs; security headers and liveness/readiness endpoints are configured, while external log collection remains unconfigured.
+
+Company verification uses the local demo JSON adapter and a server-key-protected manual review queue. Verification identifiers are private to the organization owner and administrator. This slice does not accept evidence documents, support multiple organization representatives, or store these workflows in Supabase; do not submit real company credentials or personal documents. See the acceptance matrix and operations runbook for the remaining production requirements.
 
 No AI/Claude provider, SMTP provider, payments, calendar invite, external vacancy feed, or Supabase public key is configured in this workspace. Startup and opportunity data are local fictional seed records, not a live external API or verified dataset. Contact messages are saved to the local demo inbox; no email is sent. Local fictional content is not verified and must not be used to make hiring or investment decisions. Production deployment remains blocked; `/api/health/ready` reports this explicitly.
 
